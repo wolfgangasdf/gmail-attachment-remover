@@ -176,6 +176,23 @@ object Sgar extends JFXApp {
             }
           }
         }
+        content += new Button("Remove attachments of emails...") {
+          onAction = (ae: ActionEvent) => {
+            val dellist = new ListBuffer[GmailStuff.ToDelete]
+            for (timails <- tiroot.children) {
+              val bplist = new ListBuffer[GmailStuff.Bodypart]
+              for (tibps <- timails.getChildren) {
+                bplist += tibps.getValue.bodypart
+              }
+              var td = timails.getValue.toDelete
+              td.bodyparts.clear()
+              td.bodyparts ++= bplist // some could be deleted!!!
+              dellist += td
+            }
+            for (todel <- dellist) println(todel.toString)
+            // TODO
+          }
+        }
         content += new Button("test") {
           onAction = (ae: ActionEvent) => {
             val dellist = new ListBuffer[ToDelete]()

@@ -21,13 +21,17 @@ object GmailStuff {
   val session = Session.getDefaultInstance(props, null)
   val store = session.getStore("gimap")
 
+  def heads(s: String, len: Int) = s.substring(0, math.min(len, s.length))
+
   class Bodypart(val bpi: Int, val filename: String, val filesize: Int, val contentType: String)
 
   class ToDelete(val gmid: Long,
                  val bodyparts: ListBuffer[Bodypart],
                  val from: String,
                  val subject: String,
-                 val date: String)
+                 val date: String) {
+    override def toString: String = gmid.toString + ": " + heads(subject, 10) + "; bps: " + bodyparts.map(bp => bp.bpi).mkString(",")
+  }
 
   def connect() {
     store.connect("imap.gmail.com", username, password)
