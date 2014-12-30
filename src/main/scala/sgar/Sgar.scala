@@ -1,6 +1,6 @@
 package sgar
 
-import java.io.{FileOutputStream, FileInputStream, File}
+import java.io.{PrintStream, FileOutputStream, FileInputStream, File}
 import javafx.beans.value.ObservableValue
 import javafx.scene.control.TreeTableColumn.CellDataFeatures
 import javafx.scene.control.{TreeTableColumn, TreeTableView}
@@ -9,6 +9,8 @@ import javafx.util.Callback
 import sgar.GmailStuff.{Bodypart, ToDelete}
 
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import scalafx.application.JFXApp
 import scalafx.Includes._
@@ -27,21 +29,43 @@ import Button._
 wow, this works!!!
 
 TODO:
-check if gmail id changes in the process!
 add deleted content filename + size!
   probably by adding a message part???
   or replace removed part by small text thing?
-limit to certain number of mails? (call repetively)
+test if flags preserved (unread is not!)
 limit to date range (check if via gmail search term is enough)
-check other labels preserved!!! also starred???
+test windows, if backup folder on other drive!
  */
-
-
-
 
 object Sgar extends JFXApp {
 
   val props = new java.util.Properties()
+
+  // redirect console output, must happen on top of this object!
+  val oldOut = System.out
+  val oldErr = System.err
+  System.setOut(new PrintStream(new MyConsole(false), true))
+  System.setErr(new PrintStream(new MyConsole(false), true))
+
+  def runUI( f: => Unit ) {
+    if (!scalafx.application.Platform.isFxApplicationThread) {
+      scalafx.application.Platform.runLater( new Runnable() {
+        def run() { f }
+      })
+    } else { f }
+  }
+
+  class MyConsole(errchan: Boolean) extends java.io.OutputStream {
+    override def write(b: Int): Unit = {
+      runUI { logView.appendText(b.toChar.toString) }
+      (if (errchan) oldErr else oldOut).print(b.toChar.toString)
+    }
+  }
+
+  val logView = new TextArea {
+    text = "============= Application log ==================== \n"
+  }
+
   def getSettingsFile = {
     val fp = new File(".").getAbsoluteFile.getParentFile // gets CWD!
     new File(fp.getPath + File.separator + "sgarsettings.txt")
@@ -60,6 +84,7 @@ object Sgar extends JFXApp {
     props.put("backupdir", tfbackupdir.text.value)
     props.put("minbytes", tfminbytes.text.value)
     props.put("limit", tflimit.text.value)
+    props.put("label", tflabel.text.value)
     props.put("gmailsearch", tfgmailsearch.selectionModel.value.getSelectedItem)
     val fos = new FileOutputStream(ff)
     props.store(fos,null)
@@ -122,9 +147,11 @@ object Sgar extends JFXApp {
   val tfbackupdir = new TextField { prefWidth = 500; text = props.getProperty("backupdir","???") }
   val tfminbytes = new TextField { text = props.getProperty("minbytes","10000") }
   val tflimit = new TextField { text = props.getProperty("limit","10") }
+  val tflabel = new TextField { prefWidth = 500; text = props.getProperty("label","removeattachments") }
   val tfgmailsearch = new ComboBox[String] {
     prefWidth = 500
-    val strings = ObservableBuffer("label:removeattachment size:10KB")
+    tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
+    val strings = ObservableBuffer("size:10KB has:attachment")
     items = strings
     value = props.getProperty("gmailsearch","???")
     editable = true
@@ -139,12 +166,88 @@ object Sgar extends JFXApp {
     }
   }
 
+  def setButtons(flist: Boolean = false, getemails: Boolean = false, rmattach: Boolean = false) {
+    runUI {
+      btFolderList.disable = !flist
+      btGetEmails.disable = !getemails
+      btRemoveAttachments.disable = !rmattach
+    }
+  }
+
+  def setupGmail(): Unit = {
+    GmailStuff.backupdir = new File(tfbackupdir.text.value)
+    GmailStuff.username = tfuser.text.value
+    GmailStuff.password = tfpass.text.value
+    GmailStuff.label = tflabel.text.value
+    GmailStuff.gmailsearch = tfgmailsearch.selectionModel.value.getSelectedItem
+    GmailStuff.minbytes = tfminbytes.text.value.toInt
+    GmailStuff.limit = tflimit.text.value.toInt
+  }
+
+  val btFolderList = new Button("Get gmail folder list") {
+    onAction = (ae: ActionEvent) => {
+      setButtons()
+      setupGmail()
+      Future {
+        GmailStuff.getAllFolders
+        setButtons(flist = true, getemails = true, rmattach = false)
+      }
+    }
+  }
+
+  val btGetEmails = new Button("Find emails") {
+    onAction = (ae: ActionEvent) => {
+      setButtons()
+      setupGmail()
+      tiroot.children.clear()
+      Future {
+        val dellist = GmailStuff.getToDelete
+        runUI {
+          for (todel <- dellist) {
+            val ti = new TreeItem[TreeThing](new TreeThing(todel, null))
+            for (bp <- todel.bodyparts) {
+              ti.children += new TreeItem[TreeThing](new TreeThing(todel, bp))
+            }
+            tiroot.children += ti
+          }
+        }
+        setButtons(flist = true, getemails = true, rmattach = dellist.nonEmpty)
+      }
+    }
+  }
+
+  val btRemoveAttachments = new Button("Remove attachments") {
+    onAction = (ae: ActionEvent) => {
+      setButtons()
+      setupGmail()
+      val dellist = new ListBuffer[ToDelete]
+      for (timails <- tiroot.children) {
+        val bplist = new ListBuffer[Bodypart]
+        for (tibps <- timails.getChildren) {
+          bplist += tibps.getValue.bodypart
+        }
+        if (bplist.nonEmpty) {
+          var td = timails.getValue.toDelete
+          td.bodyparts.clear()
+          td.bodyparts ++= bplist
+          dellist += td
+        }
+      }
+      for (todel <- dellist) println(todel.toString)
+      Future {
+        GmailStuff.doDelete(dellist)
+        setButtons(flist = true, getemails = true, rmattach = false)
+      }
+    }
+  }
+
   val settingsPane = new VBox(2.0) {
     fillWidth = true
     content ++= List(
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("email:"), tfuser ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("password:"), tfpass ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("backupfolder:"), tfbackupdir, bSelectbackupdir ) },
+      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("gmail label:"), tflabel ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Gmail search:"), tfgmailsearch ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List(
         new Label("minimum Attachment size (bytes):"),
@@ -159,79 +262,17 @@ object Sgar extends JFXApp {
             stopApp()
           }
         }
-        content += new Button("Connect...") {
+        content ++= List(btGetEmails, btRemoveAttachments, btFolderList)
+        content += new Button("Test") {
           onAction = (ae: ActionEvent) => {
-            GmailStuff.backupdir = new File(tfbackupdir.text.value)
-            GmailStuff.username = tfuser.text.value
-            GmailStuff.password = tfpass.text.value
-            GmailStuff.gmailsearch = tfgmailsearch.selectionModel.value.getSelectedItem
-            GmailStuff.minbytes = tfminbytes.text.value.toInt
-            GmailStuff.limit = tflimit.text.value.toInt
-            GmailStuff.connect()
-            val ff = GmailStuff.getAllFolders
-            logView.appendText("All folders in Gmail:\n")
-            for (f <- ff) logView.appendText(f + "\n")
-          }
-        }
-        content += new Button("Get emails...") {
-          onAction = (ae: ActionEvent) => {
-            val dellist = GmailStuff.getToDelete
-            tiroot.children.clear()
-            for (todel <- dellist) {
-              val ti = new TreeItem[TreeThing](new TreeThing(todel, null))
-              for (bp <- todel.bodyparts) {
-                ti.children += new TreeItem[TreeThing](new TreeThing(todel, bp))
-              }
-              tiroot.children += ti
-            }
-          }
-        }
-        content += new Button("Remove attachments of emails...") {
-          onAction = (ae: ActionEvent) => {
-            val dellist = new ListBuffer[GmailStuff.ToDelete]
-            for (timails <- tiroot.children) {
-              val bplist = new ListBuffer[GmailStuff.Bodypart]
-              for (tibps <- timails.getChildren) {
-                bplist += tibps.getValue.bodypart
-              }
-              if (bplist.nonEmpty) {
-                var td = timails.getValue.toDelete
-                td.bodyparts.clear()
-                td.bodyparts ++= bplist
-                dellist += td
-              }
-            }
-            for (todel <- dellist) println(todel.toString)
-            // TODO
-          }
-        }
-        content += new Button("test") {
-          onAction = (ae: ActionEvent) => {
-            val dellist = new ListBuffer[ToDelete]()
-            var bps = new ListBuffer[Bodypart]()
-            bps ++= List(new Bodypart(0, "fn1", 123, "type1"), new Bodypart(1, "fn2", 1234, "type2"))
-            dellist += new ToDelete(1000, bps, "from1", "subj1", "date1")
-            bps = new ListBuffer[Bodypart]()
-            bps ++= List(new Bodypart(0, "fn11", 1234, "type1"), new Bodypart(1, "fn12", 12345, "type2"))
-            dellist += new ToDelete(1001, bps, "from2", "subj2", "date2")
-
-
-            tiroot.children.clear()
-            for (todel <- dellist) {
-              val ti = new TreeItem[TreeThing](new TreeThing(todel, null))
-              for (bp <- todel.bodyparts) {
-                ti.children += new TreeItem[TreeThing](new TreeThing(todel, bp))
-              }
-              tiroot.children += ti
+            setupGmail()
+            Future {
+              GmailStuff.doTest()
             }
           }
         }
       }
     )
-  }
-
-  val logView = new TextArea {
-    text = "Application log"
   }
 
   val cont = new VBox {
@@ -242,16 +283,19 @@ object Sgar extends JFXApp {
       logView
     )
   }
+
   stage = new JFXApp.PrimaryStage {
     title.value = "Gmail Attachment Remover"
     width = 800
-    height = 600
+    height = 750
     scene = new Scene {
       content = cont
     }
     cont.prefWidth <== scene.width
     cont.prefHeight <== scene.height
   }
+
+  setButtons(flist = true, getemails = true, rmattach = false)
 
   override def stopApp(): Unit = {
     GmailStuff.cleanup()
