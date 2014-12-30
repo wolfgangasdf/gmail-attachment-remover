@@ -59,6 +59,7 @@ object Sgar extends JFXApp {
     props.put("password", tfpass.text.value)
     props.put("backupdir", tfbackupdir.text.value)
     props.put("minbytes", tfminbytes.text.value)
+    props.put("limit", tflimit.text.value)
     props.put("gmailsearch", tfgmailsearch.selectionModel.value.getSelectedItem)
     val fos = new FileOutputStream(ff)
     props.store(fos,null)
@@ -102,7 +103,13 @@ object Sgar extends JFXApp {
       ttv,
       new HBox {
         content ++= Seq(
-          new Button("remove selected rows")
+          new Button("remove selected rows") {
+            onAction = (ae: ActionEvent) => {
+              for (idx <- ttv.getSelectionModel.getSelectedCells) {
+                idx.getTreeItem.getParent.children -= idx.getTreeItem
+              }
+            }
+          }
         )
       }
     )
@@ -114,6 +121,7 @@ object Sgar extends JFXApp {
   val tfpass = new TextField { prefWidth = 500; text = props.getProperty("password","???") }
   val tfbackupdir = new TextField { prefWidth = 500; text = props.getProperty("backupdir","???") }
   val tfminbytes = new TextField { text = props.getProperty("minbytes","10000") }
+  val tflimit = new TextField { text = props.getProperty("limit","10") }
   val tfgmailsearch = new ComboBox[String] {
     prefWidth = 500
     val strings = ObservableBuffer("label:removeattachment size:10KB")
@@ -138,7 +146,12 @@ object Sgar extends JFXApp {
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("password:"), tfpass ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("backupfolder:"), tfbackupdir, bSelectbackupdir ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Gmail search:"), tfgmailsearch ) },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("minimum Attachment size (bytes):"), tfminbytes ) },
+      new HBox { alignment = Pos.CenterLeft ; content ++= List(
+        new Label("minimum Attachment size (bytes):"),
+        tfminbytes,
+        new Label("     limit no. messages:"),
+        tflimit
+      ) },
       new HBox {
         alignment = Pos.Center
         content += new Button("Quit") {
@@ -153,6 +166,7 @@ object Sgar extends JFXApp {
             GmailStuff.password = tfpass.text.value
             GmailStuff.gmailsearch = tfgmailsearch.selectionModel.value.getSelectedItem
             GmailStuff.minbytes = tfminbytes.text.value.toInt
+            GmailStuff.limit = tflimit.text.value.toInt
             GmailStuff.connect()
             val ff = GmailStuff.getAllFolders
             logView.appendText("All folders in Gmail:\n")
@@ -180,10 +194,12 @@ object Sgar extends JFXApp {
               for (tibps <- timails.getChildren) {
                 bplist += tibps.getValue.bodypart
               }
-              var td = timails.getValue.toDelete
-              td.bodyparts.clear()
-              td.bodyparts ++= bplist // some could be deleted!!!
-              dellist += td
+              if (bplist.nonEmpty) {
+                var td = timails.getValue.toDelete
+                td.bodyparts.clear()
+                td.bodyparts ++= bplist
+                dellist += td
+              }
             }
             for (todel <- dellist) println(todel.toString)
             // TODO

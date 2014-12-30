@@ -7,6 +7,7 @@ import javax.mail._
 import javax.mail.internet._
 
 import scala.collection.mutable.ListBuffer
+import scala.util.control.Breaks._
 
 
 object GmailStuff {
@@ -15,6 +16,7 @@ object GmailStuff {
   var password = ""
   var gmailsearch = ""
   var minbytes = 0
+  var limit = 0
 
   val props = System.getProperties
   //  props.setProperty("mail.store.protocol", "gimap")
@@ -56,7 +58,8 @@ object GmailStuff {
 
     val msgs = inbox.search(new GmailRawSearchTerm(gmailsearch))
     //    val msgs = inbox.getMessages
-    for (message <- msgs) {
+    var idx = 0
+    breakable { for (message <- msgs) {
       var dodelete = false
       val bps = new ListBuffer[Bodypart]()
       val gm = message.asInstanceOf[GmailMessage]
@@ -76,7 +79,9 @@ object GmailStuff {
         case _ =>
       }
       if (dodelete) dellist += new ToDelete(gm.getMsgId, bps, gm.getFrom.head.toString, gm.getSubject, gm.getSentDate.toString)
-    }
+      idx += 1
+      if (idx > limit) break()
+    } }
     inbox.close(true)
     dellist
   }
