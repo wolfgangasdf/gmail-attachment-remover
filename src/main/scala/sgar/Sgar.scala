@@ -28,16 +28,12 @@ wow, this works!!!
 
 TODO:
 check if gmail id changes in the process!
-make safer, store in todelete also filename etc.
 add deleted content filename + size!
-probably limit to certain number of mails? (call repetively)
-limit to date range
-then ask for confirmation, and I am done!
+  probably by adding a message part???
+  or replace removed part by small text thing?
+limit to certain number of mails? (call repetively)
+limit to date range (check if via gmail search term is enough)
 check other labels preserved!!! also starred???
-dialog:
-  dir chooser for backupdir
-  gmail login
-
  */
 
 
