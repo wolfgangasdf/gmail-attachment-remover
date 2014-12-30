@@ -20,11 +20,13 @@ An app that connects to your gmail account and removes selected attachments, for
 To run it, you need java >= 1.8
 
 Do this on gmail:
+
 * assign a certain label to your emails where you want to remove the attachment(s), I use `removeattachments`
     * I make a filter for large emails to assign this automatically. I always save important attachments on disk!
 * enable imap access TODO
 
 On your computer:
+
 * download binary version from TODO
 * run it, and adjust settings:
     * adjust user name (email adress), password, folder for backups
@@ -35,6 +37,7 @@ On your computer:
 * press `Get emails`. The table should be populated with possible emails.
 * Check the table and remove attachments / emails (to preserve all attachments in an email) from the table if they should not be removed
 * press `Remove attachments` to start the removal procedure
+
 TODO
 
 ## Run from source:
