@@ -1,21 +1,23 @@
 package sgar
 
+import scala.collection.mutable.ListBuffer
+import scala.util.control.Breaks._
+
 import java.io.{FileInputStream, FileOutputStream}
 
-import com.sun.mail.gimap._
 import javax.mail._
 import javax.mail.internet._
-
+import com.sun.mail.gimap._
 import com.sun.mail.iap.Argument
 import com.sun.mail.imap.{IMAPMessage, IMAPFolder}
 import com.sun.mail.imap.IMAPFolder.ProtocolCommand
 import com.sun.mail.imap.protocol.IMAPProtocol
 
-import scala.collection.mutable.ListBuffer
-import scala.util.control.Breaks._
-
 /*
-all public usable methods have their own exception handling, i.e., they can be called in another thread (e.g., future)!
+ * all public useful methods have their own exception handling, i.e., they can be called in another thread (e.g., future)!
+ *
+ * flags: gmail seems to use only "flagged" == starred and "seen" == read
+ *
  */
 
 object GmailStuff {
@@ -42,6 +44,18 @@ object GmailStuff {
                  val subject: String,
                  val date: String) {
     override def toString: String = gmid.toString + ": " + heads(subject, 10) + "; bps: " + bodyparts.map(bp => bp.bpi).mkString(",")
+  }
+
+  def flagToString(f: Flags.Flag) = {
+    f match {
+      case Flags.Flag.ANSWERED => "answered"
+      case Flags.Flag.DELETED => "deleted"
+      case Flags.Flag.DRAFT => "draft"
+      case Flags.Flag.FLAGGED => "flagged"
+      case Flags.Flag.RECENT => "recent"
+      case Flags.Flag.SEEN => "seen"
+      case Flags.Flag.USER => "user"
+    }
   }
 
   private def connect() {
@@ -75,7 +89,7 @@ object GmailStuff {
       val inbox = store.getFolder("[Gmail]/All Mail")
       inbox.open(Folder.READ_WRITE)
       val msgs = inbox.search(new GmailRawSearchTerm(gmailsearch + (if (label.isEmpty) "" else " label:" + label)))
-      var idx = 0
+      var count = 0
       breakable {
         for (message <- msgs) {
           var dodelete = false
@@ -89,16 +103,18 @@ object GmailStuff {
               for (i <- 0 to mmpm.getCount - 1) {
                 val bp = mmpm.getBodyPart(i)
                 println(s"  i=$i fn=" + bp.getFileName + " size=" + bp.getSize + " ct=" + bp.getContentType)
-                if (bp.getSize > minbytes) {
+                if (bp.getSize > minbytes && bp.getFileName != null) {
                   bps += new Bodypart(i, bp.getFileName, bp.getSize, bp.getContentType)
                   dodelete = true
                 }
               }
             case _ =>
           }
-          if (dodelete) dellist += new ToDelete(gm.getMsgId, bps, gm.getFrom.head.toString, gm.getSubject, gm.getSentDate.toString)
-          idx += 1
-          if (idx > limit) break()
+          if (dodelete) {
+            dellist += new ToDelete(gm.getMsgId, bps, gm.getFrom.head.toString, gm.getSubject, gm.getSentDate.toString)
+            count += 1
+          }
+          if (count > limit) break()
         }
       }
       inbox.close(true)
@@ -120,22 +136,21 @@ object GmailStuff {
       inbox.open(Folder.READ_WRITE)
       for (todel <- dellist) {
         println("gmid=" + todel.gmid)
+
         val msg = inbox.search(new GmailMsgIdTerm(todel.gmid)).head
+
+        // backup labels & flags (do before any msg download which sets SEEN flag!)
+        val oldlabels = msg.asInstanceOf[GmailMessage].getLabels.toBuffer[String]
+        val oldflags = msg.getFlags
 
         println("backup message...")
         val tmpfile = new java.io.File(backupdir, todel.gmid.toString + ".msg")
-        println("  tmpfile=" + tmpfile.getPath)
+        println("  backupfile=" + tmpfile.getPath)
         val os = new FileOutputStream(tmpfile)
         msg.writeTo(os)
         os.close()
 
-        // backup labels & flags
-        val oldlabels = msg.asInstanceOf[GmailMessage].getLabels.toBuffer[String]
-        val oldflags = msg.getFlags
-        println(" OLD LABELS: " + oldlabels.mkString(";"))
-
         println("deleting message in gmail...")
-        println("  bps = " + msg.getContent.asInstanceOf[MimeMultipart].getCount)
         inbox.copyMessages(Array(msg), trash)
         trash.open(Folder.READ_WRITE)
         val tmsgs = trash.getMessages
@@ -146,38 +161,42 @@ object GmailStuff {
         val is = new FileInputStream(tmpfile)
         val newmsg = new MimeMessage(session, is)
         is.close()
-        println("  bps = " + newmsg.getContent.asInstanceOf[MimeMultipart].getCount)
 
         println("remove attachments...")
-        println("  bps = " + newmsg.getContent.asInstanceOf[MimeMultipart].getCount)
         val mmpm = newmsg.getContent.asInstanceOf[MimeMultipart]
-        // TODO check if I need to reverse!
+        // do in reverse order!
         for (bpdel <- todel.bodyparts.reverse) mmpm.removeBodyPart(bpdel.bpi)
-        // set flags
-        newmsg.setFlags(oldflags, true)
-        // save changes (flags & bodyparts)
+        // re-add as empty attachment
+        for (bpdel <- todel.bodyparts) {
+          val nbp = new MimeBodyPart()
+          nbp.setHeader("Content-Type", "text/plain")
+          nbp.setFileName(bpdel.filename + ".txt")
+          nbp.setText("Removed attachment <" + bpdel.filename + "> of size <" + bpdel.filesize + ">")
+          mmpm.addBodyPart(nbp)
+        }
+
+        // save changes
         newmsg.saveChanges()
-        println("  bps = " + newmsg.getContent.asInstanceOf[MimeMultipart].getCount)
 
         println("putting message back into gmail...")
         val resm = inbox.addMessages(Array(newmsg)).head
         val newgmailid = resm.asInstanceOf[GmailMessage].getMsgId
         println(" newmsg gmail id=" + newgmailid)
 
-        // restore labels & flags
-        println("Restore labels...")
-
-        inbox.close(true) // this is essential for doCommand() to work below!
+        // re-open folder, this is essential for doCommand() to work below!
+        inbox.close(true)
         inbox.open(Folder.READ_WRITE)
 
-        val nmsgs = inbox.search(new GmailMsgIdTerm(newgmailid))
+        val nmsgx = inbox.search(new GmailMsgIdTerm(newgmailid)).head
+        val nmsg = nmsgx.asInstanceOf[IMAPMessage]
 
-        val nmsg = nmsgs.head.asInstanceOf[IMAPMessage]
-        println("label=" + label)
-        if (label != "") {
+        // restore flags
+        inbox.setFlags(Array(nmsgx), oldflags, true)
+
+        if (label != "") { // remove tag label!
           oldlabels -= label
         }
-        println(" adding labels: " + oldlabels.mkString(";"))
+        println("Restoring labels (without tag-label): " + oldlabels.mkString(";"))
         inbox.doCommand(new ProtocolCommand {
           override def doCommand(protocol: IMAPProtocol): AnyRef = {
             val args = new Argument()
@@ -185,9 +204,7 @@ object GmailStuff {
             args.writeString("+X-GM-LABELS")
             for (lab <- oldlabels) args.writeString(lab)
             val r = protocol.command("STORE", args)
-            for (rr <- r) println(" response: " + rr.toString)
-            val response = r(r.length - 1)
-            if (!response.isOK) throw new MessagingException("error setting labels of email!")
+            if (!r.last.isOK) throw new MessagingException("error setting labels of email!")
             null
           }
         })
@@ -202,7 +219,71 @@ object GmailStuff {
     }
   }
 
-  def doTest() {
+  def doTestFlags() {
+    try {
+      connect()
+      val inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
+      inbox.open(Folder.READ_WRITE)
+
+      println("gmailsearch=" + gmailsearch)
+      val msgs = inbox.search(new GmailMsgIdTerm(1488957505766432509L))
+      for (m <- msgs) println("msg: " + m.getSubject + m.getSentDate)
+
+      val nmsg = msgs.head.asInstanceOf[IMAPMessage]
+      println("nmsg: " + nmsg.getMessageID + " num=" + nmsg.getMessageNumber + " gid=" + nmsg.asInstanceOf[GmailMessage].getMsgId)
+
+      val flags = nmsg.getFlags
+      println("sflags = " + flags.getSystemFlags.map(f => flagToString(f)).mkString(";"))
+      println("uflags = " + flags.getUserFlags.mkString(";"))
+
+      inbox.close(true)
+      store.close()
+      println("finished!")
+    } catch {
+      case e: Exception => e.printStackTrace()
+    } finally {
+      println("store close")
+      store.close()
+    }
+  }
+
+  def doTestodypart() {
+    try {
+      connect()
+      val inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
+      inbox.open(Folder.READ_WRITE)
+
+      println("gmailsearch=" + gmailsearch)
+      val msgs = inbox.search(new GmailMsgIdTerm(1488957505766432509L))
+      for (m <- msgs) println("msg: " + m.getSubject + m.getSentDate)
+
+      val nmsg = msgs.head.asInstanceOf[IMAPMessage]
+      println("nmsg: " + nmsg.getMessageID + " num=" + nmsg.getMessageNumber + " gid=" + nmsg.asInstanceOf[GmailMessage].getMsgId)
+
+      val mmpm = nmsg.getContent.asInstanceOf[MimeMultipart]
+
+      for (bpi <- 1 to mmpm.getCount - 1) println("  bp " + bpi + " : " + mmpm.getBodyPart(bpi).getContent.toString)
+
+      val nbp = new MimeBodyPart()
+      nbp.setHeader("Content-Type", "text/html")
+      nbp.setText("huhuhuhuhuhuhuhuh")
+
+      mmpm.addBodyPart(nbp)
+
+//      nmsg.saveChanges()
+
+      inbox.close(true)
+      store.close()
+      println("finished!")
+    } catch {
+      case e: Exception => e.printStackTrace()
+    } finally {
+      println("store close")
+      store.close()
+    }
+  }
+
+  def doTestLabels() {
     try {
       connect()
       val inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]

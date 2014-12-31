@@ -1,10 +1,6 @@
 package sgar
 
 import java.io.{PrintStream, FileOutputStream, FileInputStream, File}
-import javafx.beans.value.ObservableValue
-import javafx.scene.control.TreeTableColumn.CellDataFeatures
-import javafx.scene.control.{TreeTableColumn, TreeTableView}
-import javafx.util.Callback
 
 import sgar.GmailStuff.{Bodypart, ToDelete}
 
@@ -25,16 +21,15 @@ import scalafx.stage.DirectoryChooser
 import HBox._
 import Button._
 
-/*
-wow, this works!!!
+import javafx.beans.value.ObservableValue
+import javafx.scene.control.TreeTableColumn.CellDataFeatures
+import javafx.scene.control.{TreeTableColumn, TreeTableView}
+import javafx.util.Callback
 
+/*
 TODO:
-add deleted content filename + size!
-  probably by adding a message part???
-  or replace removed part by small text thing?
-test if flags preserved (unread is not!)
-limit to date range (check if via gmail search term is enough)
 test windows, if backup folder on other drive!
+support oauth2: https://java.net/projects/javamail/pages/OAuth2
  */
 
 object Sgar extends JFXApp {
@@ -151,16 +146,16 @@ object Sgar extends JFXApp {
   val tfgmailsearch = new ComboBox[String] {
     prefWidth = 500
     tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
-    val strings = ObservableBuffer("size:10KB has:attachment")
+    val strings = ObservableBuffer("size:10KB has:attachment", "size:10KB has:attachment older_than:5m")
     items = strings
     value = props.getProperty("gmailsearch","???")
     editable = true
   }
 
-  val bSelectbackupdir = new Button("select...") {
+  val bSelectbackupdir = new Button("Select...") {
     onAction = (ae: ActionEvent) => {
       val fcbackupdir = new DirectoryChooser {
-        title = "pick backup folder..."
+        title = "Pick backup folder..."
       }
       tfbackupdir.text = fcbackupdir.showDialog(stage).getAbsolutePath
     }
@@ -236,6 +231,7 @@ object Sgar extends JFXApp {
       for (todel <- dellist) println(todel.toString)
       Future {
         GmailStuff.doDelete(dellist)
+        runUI { tiroot.children.clear() }
         setButtons(flist = true, getemails = true, rmattach = false)
       }
     }
@@ -244,15 +240,15 @@ object Sgar extends JFXApp {
   val settingsPane = new VBox(2.0) {
     fillWidth = true
     content ++= List(
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("email:"), tfuser ) },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("password:"), tfpass ) },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("backupfolder:"), tfbackupdir, bSelectbackupdir ) },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("gmail label:"), tflabel ) },
+      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Email:"), tfuser ) },
+      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Password:"), tfpass ) },
+      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Backupfolder:"), tfbackupdir, bSelectbackupdir ) },
+      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Gmail label:"), tflabel ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Gmail search:"), tfgmailsearch ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List(
-        new Label("minimum Attachment size (bytes):"),
+        new Label("Minimum Attachment size (bytes):"),
         tfminbytes,
-        new Label("     limit no. messages:"),
+        new Label("     Limit no. messages:"),
         tflimit
       ) },
       new HBox {
@@ -266,8 +262,8 @@ object Sgar extends JFXApp {
         content += new Button("Test") {
           onAction = (ae: ActionEvent) => {
             setupGmail()
-            Future {
-              GmailStuff.doTest()
+            val f = Future {
+              GmailStuff.doTestodypart()
             }
           }
         }
