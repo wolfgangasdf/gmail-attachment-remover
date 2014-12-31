@@ -10,7 +10,11 @@ object Build extends Build {
   lazy val sgar = Project(
     id = "sgar",
     base = file("."),
+  /* should work but doesn't (sbt run can't find main class):
     settings = Defaults.coreDefaultSettings ++ JavaFXPlugin.jfxSettings ++ Seq(
+      JFX.mainClass := Some("sgar.Sgar"),
+   */
+    settings = Defaults.coreDefaultSettings ++ Seq(
       name := "sgar",
       organization := "com.sgar",
       version := "0.1-SNAPSHOT",
@@ -19,8 +23,7 @@ object Build extends Build {
         "org.scalafx" %% "scalafx" % "8.0.20-R6",
         "com.sun.mail" % "javax.mail" % "1.5.2",
         "com.sun.mail" % "gimap" % "1.5.2"
-      ),
-      JFX.mainClass := Some("mypackage.MyJavaFXApplication")
+      )
     )
   )
 }
