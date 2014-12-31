@@ -7,4 +7,3 @@ jfxSettings
 JFX.mainClass := Some("sgar.Sgar")
 
 JFX.devKit := JFX.jdk(System.getenv("JAVA_HOME"))
-

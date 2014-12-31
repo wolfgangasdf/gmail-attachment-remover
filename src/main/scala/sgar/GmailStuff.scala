@@ -95,20 +95,18 @@ object GmailStuff {
           var dodelete = false
           val bps = new ListBuffer[Bodypart]()
           val gm = message.asInstanceOf[GmailMessage]
-          println(s"${message.getSubject} gid=${gm.getMsgId} labels:${gm.getLabels.mkString(",")}")
+          println(s"checking gid=${gm.getMsgId} subj=${message.getSubject} labels:${gm.getLabels.mkString(",")}")
           val mp = gm.getContent
-          println("  mp.class = " + mp.getClass)
           mp match {
             case mmpm: MimeMultipart =>
               for (i <- 0 to mmpm.getCount - 1) {
                 val bp = mmpm.getBodyPart(i)
-                println(s"  i=$i fn=" + bp.getFileName + " size=" + bp.getSize + " ct=" + bp.getContentType)
                 if (bp.getSize > minbytes && bp.getFileName != null) {
                   bps += new Bodypart(i, bp.getFileName, bp.getSize, bp.getContentType)
                   dodelete = true
                 }
               }
-            case _ =>
+            case _ => println("  unknown mp.class = " + mp.getClass)
           }
           if (dodelete) {
             dellist += new ToDelete(gm.getMsgId, bps, gm.getFrom.head.toString, gm.getSubject, gm.getSentDate.toString)
