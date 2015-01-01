@@ -40,8 +40,20 @@ object Sgar extends JFXApp {
   // redirect console output, must happen on top of this object!
   val oldOut = System.out
   val oldErr = System.err
+  var logps: FileOutputStream = null
   System.setOut(new PrintStream(new MyConsole(false), true))
-  System.setErr(new PrintStream(new MyConsole(false), true))
+  System.setErr(new PrintStream(new MyConsole(true), true))
+
+  val logfile = File.createTempFile("sgar",".txt")
+  logps = new FileOutputStream(logfile)
+
+  class MyConsole(errchan: Boolean) extends java.io.OutputStream {
+    override def write(b: Int): Unit = {
+      runUI { logView.appendText(b.toChar.toString) }
+      if (logps != null) logps.write(b)
+      (if (errchan) oldErr else oldOut).print(b.toChar.toString)
+    }
+  }
 
   def runUI( f: => Unit ) {
     if (!scalafx.application.Platform.isFxApplicationThread) {
@@ -49,13 +61,6 @@ object Sgar extends JFXApp {
         def run() { f }
       })
     } else { f }
-  }
-
-  class MyConsole(errchan: Boolean) extends java.io.OutputStream {
-    override def write(b: Int): Unit = {
-      runUI { logView.appendText(b.toChar.toString) }
-      (if (errchan) oldErr else oldOut).print(b.toChar.toString)
-    }
   }
 
   val logView = new TextArea {
@@ -190,6 +195,7 @@ object Sgar extends JFXApp {
 
 
   loadSettings()
+  println("Logging to file " + logfile.getPath)
 
 
   val tfbackupdir = new TextField { prefWidth = 500; text = "" }
@@ -199,7 +205,7 @@ object Sgar extends JFXApp {
   val tfgmailsearch = new ComboBox[String] {
     prefWidth = 500
     tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
-    val strings = ObservableBuffer("size:10KB has:attachment -in:inbox", "size:10KB has:attachment older_than:5m -in:inbox")
+    val strings = ObservableBuffer("size:1MB has:attachment -in:inbox", "size:1MB has:attachment older_than:12m -in:inbox")
     items = strings
     editable = true
   }
@@ -411,6 +417,7 @@ object Sgar extends JFXApp {
     updatePropertiesForAccount()
     updateAccountsPropertiesFromGui()
     saveSettings()
+    if (logps != null) logps.close()
     super.stopApp()
     System.exit(0)
   }

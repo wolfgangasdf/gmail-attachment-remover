@@ -42,7 +42,7 @@ object GmailStuff {
   val clientid = "217209351804-pf92dc077qrvtotiro7b9lcl6pjrhfhq.apps.googleusercontent.com"
   val clientsecret = "WqZuf6h_xD0al4vH5jolJyds"
 
-  def heads(s: String, len: Int) = s.substring(0, math.min(len, s.length))
+  def heads(s: String, len: Int) = if (s != null) s.substring(0, math.min(len, s.length)) else ""
 
   class Bodypart(val bpi: Int, val filename: String, val filesize: Int, val contentType: String)
 
@@ -116,6 +116,7 @@ object GmailStuff {
       val inbox = store.getFolder("[Gmail]/All Mail")
       inbox.open(Folder.READ_WRITE)
       val msgs = inbox.search(new GmailRawSearchTerm(gmailsearch + (if (label.isEmpty) "" else " label:" + label)))
+      println(s" ${msgs.length} emails found matching the criteria, querying the first limit=$limit emails only!")
       var count = 0
       breakable {
         for (message <- msgs) {
@@ -154,13 +155,25 @@ object GmailStuff {
 
   def doDelete(dellist: ListBuffer[ToDelete]) {
     try {
-      connect()
+      var startns: Long = -1
+      var inbox: IMAPFolder = null
+      var trash: IMAPFolder = null
       println("deleting attachments of " + dellist.length + " emails...")
-      val inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
-      val trash = store.getFolder("[Gmail]/Trash").asInstanceOf[IMAPFolder]
-      inbox.open(Folder.READ_WRITE)
+      var count = 0
       for (todel <- dellist) {
-        println("gmid=" + todel.gmid + " subj=" + todel.subject + " date=" + todel.date)
+        count += 1
+        if (startns == -1 || (System.nanoTime - startns)/1e9 > 10 * 60) {
+          // re-open connection incl auth after 10 minutes... Gmail seems to drop it from time to time.
+          println("----- Re-connect after 10 minutes...")
+          if (store.isConnected) store.close()
+          connect()
+          inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
+          trash = store.getFolder("[Gmail]/Trash").asInstanceOf[IMAPFolder]
+          inbox.open(Folder.READ_WRITE)
+          startns = System.nanoTime
+          println("----- Re-connected!")
+        }
+        println(s"[$count/${dellist.length}] gmid=${todel.gmid} subj=${todel.subject} date=${todel.date}")
 
         val msg = inbox.search(new GmailMsgIdTerm(todel.gmid)).head
 
@@ -169,21 +182,14 @@ object GmailStuff {
         val oldflags = msg.getFlags
 
         println("backup message...")
-        val tmpfile = new java.io.File(backupdir, todel.gmid.toString + ".msg")
-        println("  backupfile=" + tmpfile.getPath)
-        val os = new FileOutputStream(tmpfile)
+        val backupfile = new java.io.File(backupdir, todel.gmid.toString + ".msg")
+        println("  backupfile=" + backupfile.getPath)
+        val os = new FileOutputStream(backupfile)
         msg.writeTo(os)
         os.close()
 
-        println("deleting message in gmail...")
-        inbox.copyMessages(Array(msg), trash)
-        trash.open(Folder.READ_WRITE)
-        val tmsgs = trash.getMessages
-        for (tmsg <- tmsgs) tmsg.setFlag(Flags.Flag.DELETED, true)
-        trash.close(true)
-
         println("re-creating message...")
-        val is = new FileInputStream(tmpfile)
+        val is = new FileInputStream(backupfile)
         val newmsg = new MimeMessage(session, is)
         is.close()
 
@@ -207,6 +213,13 @@ object GmailStuff {
         val resm = inbox.addMessages(Array(newmsg)).head
         val newgmailid = resm.asInstanceOf[GmailMessage].getMsgId
         println(" newmsg gmail id=" + newgmailid)
+
+        println("deleting message in gmail and emptying trash...")
+        inbox.copyMessages(Array(msg), trash)
+        trash.open(Folder.READ_WRITE)
+        val tmsgs = trash.getMessages
+        for (tmsg <- tmsgs) tmsg.setFlag(Flags.Flag.DELETED, true)
+        trash.close(true)
 
         // re-open folder, this is essential for doCommand() to work below!
         inbox.close(true)
