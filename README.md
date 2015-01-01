@@ -1,9 +1,9 @@
-# Introduction Gmail attachment remover
+# Gmail attachment remover
 
 This is an app that connects to your gmail account and removes selected attachments, for instance for large emails, without skrewing up the thread display. Google does not want to support this.
 
 * Before removing an attachment, a local full backup of the email is saved. But you should save your important attachments manually before!
-* The removed attachment is replaced by a text-file attachment containing the original filename and size
+* The removed attachment is replaced by a text-file attachment containing the original attachment filename and size.
 
 ## Safety
 
@@ -15,7 +15,6 @@ This is an app that connects to your gmail account and removes selected attachme
 
 ## Changelog / Status ##
 
-* Missing: OAuth2 authentification
 
 # Getting started #
 
@@ -39,9 +38,8 @@ On your computer:
     * `gmail search`: use a "RAW gmail search term" to pre-filter emails. See the examples in the drop-down list and (here)[https://support.google.com/mail/answer/7190?hl=en] for information.
     * `minimum Attachment size`: Select a minimum size above which attachments will be considered. Important for multiple attachments in mails!
 * press `Authenticate account` to perform OAuth2 authentification. A web browser window should open, make sure that you are logged in with the correct gmail account!
-* press `Connect`. A list of all your email folders on gmail should appear in the log window
 * press `Get emails`. The table should be populated with possible emails. This might take some time!
-* Check the table and remove attachments from the table if they should not be removed.
+* Check the table and remove attachments (or whole emails) from the table if they should not be removed.
 * press `Remove attachments` to start the removal procedure. This might take some time!
 
 ## Run from source:
@@ -68,7 +66,7 @@ Do simply:
 
 # Details
 
-* the settings file `sgarsettings.txt` is stored in the current working directory, usually next to the jar file.
+* the settings file `sgarsettings.txt` is stored in the current working directory, usually next to the jar file. Its full path is displayed on startup
 * only attachments which have a "filename" are considered. This excludes effectively html/text message parts.
 * IMAP message flags are preserved during attachment removal, gmail seems to use only SEEN and FLAGGED (=starred).
 * gmail message labels are preserved, too; if the `label` tag (see above) is non-empty, it is removed after attachment removal.
@@ -76,7 +74,7 @@ Do simply:
 
 # Contributors #
 
-Contributions are of course very welcome, please contact me or use the standard methods or email.
+Bugreports, Comments and Contributions are of course very welcome, please use the standard methods or email.
 
 # Maintainer #
 
