@@ -1,10 +1,15 @@
 package sgar
 
+import org.json.simple.{JSONObject, JSONValue}
+
+import scalaj.http.Http
+
 import scala.collection.mutable.ListBuffer
 import scala.util.control.Breaks._
 
 import java.io.{FileInputStream, FileOutputStream}
-
+import java.util.Properties
+import java.net.{URLDecoder, URLEncoder}
 import javax.mail._
 import javax.mail.internet._
 import com.sun.mail.gimap._
@@ -12,6 +17,7 @@ import com.sun.mail.iap.Argument
 import com.sun.mail.imap.{IMAPMessage, IMAPFolder}
 import com.sun.mail.imap.IMAPFolder.ProtocolCommand
 import com.sun.mail.imap.protocol.IMAPProtocol
+
 
 /*
  * all public useful methods have their own exception handling, i.e., they can be called in another thread (e.g., future)!
@@ -23,16 +29,18 @@ import com.sun.mail.imap.protocol.IMAPProtocol
 object GmailStuff {
   var backupdir: java.io.File = null
   var username = ""
-  var password = ""
   var gmailsearch = ""
   var minbytes = 0
   var limit = 0
   var label = ""
+  var refreshtoken = ""
 
-  val props = System.getProperties
-  //  props.setProperty("mail.store.protocol", "gimap")
-  val session = Session.getDefaultInstance(props, null)
-  val store = session.getStore("gimaps")
+  var store: Store = null
+  var session: Session = null
+
+  // OAuth2
+  val clientid = "217209351804-pf92dc077qrvtotiro7b9lcl6pjrhfhq.apps.googleusercontent.com"
+  val clientsecret = "WqZuf6h_xD0al4vH5jolJyds"
 
   def heads(s: String, len: Int) = s.substring(0, math.min(len, s.length))
 
@@ -60,24 +68,43 @@ object GmailStuff {
 
   private def connect() {
     println("connecting...")
-    store.connect("imap.gmail.com", username, password)
+    println(" getting oauth2 access token...")
+    if (refreshtoken == null) throw new Exception("refresh token error, please re-authenticate!")
+    val oauth2_access_token = OAuth2google.RefreshTokens(clientid, clientsecret, refreshtoken)
+    println(" connecting to gmail...")
+
+    val props = new Properties()
+    props.put("mail.store.protocol", "gimaps")
+    props.put("mail.gimaps.sasl.enable", "true")
+    props.put("mail.gimaps.sasl.mechanisms", "XOAUTH2")
+    props.put("mail.imaps.sasl.mechanisms.oauth2.oauthToken", oauth2_access_token)
+    session = Session.getInstance(props)
+
+    store = session.getStore("gimaps")
+    store.connect("imap.gmail.com", username, oauth2_access_token)
     println("connected: " + store.isConnected)
   }
 
   def getAllFolders: ListBuffer[String] = {
-    println("Get all gmail folders...")
-    connect()
     val lb = new ListBuffer[String]()
-    def listFolderRec(folder: Folder, level: Int): Unit = {
-      val s = folder.getFullName
-      println(("." * level) + s)
-      lb += s
-      val childs = folder.list
-      for (ch <- childs) listFolderRec(ch, level + 1)
+    try {
+      println("Get all gmail folders...")
+      connect()
+      def listFolderRec(folder: Folder, level: Int): Unit = {
+        val s = folder.getFullName
+        println(("." * level) + s)
+        lb += s
+        val childs = folder.list
+        for (ch <- childs) listFolderRec(ch, level + 1)
+      }
+      listFolderRec(store.getDefaultFolder, 0)
+      store.close()
+      println("Get all gmail folders finished!")
+    } catch {
+      case e: Exception => e.printStackTrace()
+    } finally {
+      store.close()
     }
-    listFolderRec(store.getDefaultFolder, 0)
-    store.close()
-    println("Get all gmail folders finished!")
     lb
   }
 
@@ -217,16 +244,15 @@ object GmailStuff {
     }
   }
 
-  def doTestFlags() {
+  def doTest() {
     try {
       connect()
       val inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
       inbox.open(Folder.READ_WRITE)
 
       println("gmailsearch=" + gmailsearch)
-      val msgs = inbox.search(new GmailMsgIdTerm(1488957505766432509L))
+      val msgs = inbox.search(new GmailMsgIdTerm("1488957505766432509".toLong))
       for (m <- msgs) println("msg: " + m.getSubject + m.getSentDate)
-
       val nmsg = msgs.head.asInstanceOf[IMAPMessage]
       println("nmsg: " + nmsg.getMessageID + " num=" + nmsg.getMessageNumber + " gid=" + nmsg.asInstanceOf[GmailMessage].getMsgId)
 
@@ -245,78 +271,65 @@ object GmailStuff {
     }
   }
 
-  def doTestodypart() {
-    try {
-      connect()
-      val inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
-      inbox.open(Folder.READ_WRITE)
-
-      println("gmailsearch=" + gmailsearch)
-      val msgs = inbox.search(new GmailMsgIdTerm(1488957505766432509L))
-      for (m <- msgs) println("msg: " + m.getSubject + m.getSentDate)
-
-      val nmsg = msgs.head.asInstanceOf[IMAPMessage]
-      println("nmsg: " + nmsg.getMessageID + " num=" + nmsg.getMessageNumber + " gid=" + nmsg.asInstanceOf[GmailMessage].getMsgId)
-
-      val mmpm = nmsg.getContent.asInstanceOf[MimeMultipart]
-
-      for (bpi <- 1 to mmpm.getCount - 1) println("  bp " + bpi + " : " + mmpm.getBodyPart(bpi).getContent.toString)
-
-      val nbp = new MimeBodyPart()
-      nbp.setHeader("Content-Type", "text/html")
-      nbp.setText("huhuhuhuhuhuhuhuh")
-
-      mmpm.addBodyPart(nbp)
-
-//      nmsg.saveChanges()
-
-      inbox.close(true)
-      store.close()
-      println("finished!")
-    } catch {
-      case e: Exception => e.printStackTrace()
-    } finally {
-      println("store close")
-      store.close()
-    }
-  }
-
-  def doTestLabels() {
-    try {
-      connect()
-      val inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
-      inbox.open(Folder.READ_WRITE)
-
-      println("gmailsearch=" + gmailsearch)
-      val msgs = inbox.search(new GmailMsgIdTerm(1488957505766432509L))
-      for (m <- msgs) println("msg: " + m.getSubject + m.getSentDate)
-
-      val nmsg = msgs.head.asInstanceOf[IMAPMessage]
-      println("nmsg: " + nmsg.getMessageID + " num=" + nmsg.getMessageNumber + " gid=" + nmsg.asInstanceOf[GmailMessage].getMsgId)
-
-      inbox.doCommand(new ProtocolCommand {
-        override def doCommand(protocol: IMAPProtocol): AnyRef = {
-          val args = new Argument()
-          args.writeString("" + nmsg.getMessageNumber)
-          args.writeString("+X-GM-LABELS")
-          args.writeString("test1")
-          args.writeString("test1/test1sub1")
-          val r = protocol.command("STORE", args)
-          for (rr <- r) println(" response: " + rr.toString)
-          null
-        }
-      })
-      inbox.close(true)
-      store.close()
-      println("finished!")
-    } catch {
-      case e: Exception => e.printStackTrace()
-    } finally {
-      store.close()
-    }
-  }
-
   def cleanup(): Unit = {
-    if (store.isConnected) store.close()
+    if (store != null) if (store.isConnected) store.close()
   }
+}
+
+object OAuth2google {
+  // based on http://google-mail-oauth2-tools.googlecode.com/svn/trunk/python/oauth2.py
+
+  val GOOGLE_ACCOUNTS_BASE_URL = "https://accounts.google.com"
+
+  // Hardcoded dummy redirect URI for non-web apps.
+  val REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
+
+  def AccountsUrl(command: String) = s"$GOOGLE_ACCOUNTS_BASE_URL/$command"
+
+  def UrlEscape(text: String) = URLEncoder.encode(text, "UTF-8")
+
+  def UrlUnescape(text: String) = URLDecoder.decode(text, "UTF-8")
+
+  def FormatUrlParams(params: Seq[(String, String)]) = {
+    params map { case (k, v) => s"$k=${UrlEscape(v)}" } mkString "&"
+  }
+
+  def GeneratePermissionUrl(client_id: String, scope: String ="https://mail.google.com/") = {
+    val params = Seq(
+      ("client_id", client_id),
+      ("redirect_uri", REDIRECT_URI),
+      ("scope", scope),
+      ("response_type", "code"))
+    s"${AccountsUrl("o/oauth2/auth")}?${FormatUrlParams(params)}"
+  }
+
+  def GenURL(base: String, params: Seq[(String, String)]) = {
+    s"$base?${FormatUrlParams(params)}"
+  }
+
+  def AuthorizeTokens(client_id: String, client_secret: String, authorization_code: String) = {
+    val params = Seq(
+      ("client_id", client_id),
+      ("client_secret", client_secret),
+      ("code", authorization_code),
+      ("redirect_uri", REDIRECT_URI),
+      ("grant_type", "authorization_code"))
+    val response = Http(AccountsUrl("o/oauth2/token")).postForm(params).asString
+    if (!response.isSuccess) throw new Exception("error retrieving auth token response = " + response)
+    val r1 = JSONValue.parse(response.body).asInstanceOf[JSONObject]
+    (r1.get("access_token").toString, r1.get("refresh_token").toString)
+  }
+
+  def RefreshTokens(client_id: String, client_secret: String, refresh_token: String) = {
+    val params = Seq(
+      ("client_id", client_id),
+      ("client_secret", client_secret),
+      ("refresh_token", refresh_token),
+      ("grant_type", "refresh_token"))
+    val response = Http(AccountsUrl("o/oauth2/token")).postForm(params).asString
+    if (!response.isSuccess) throw new Exception("error retrieving refresh token response = " + response)
+    val r1 = JSONValue.parse(response.body).asInstanceOf[JSONObject]
+    r1.get("access_token").toString
+  }
+
 }

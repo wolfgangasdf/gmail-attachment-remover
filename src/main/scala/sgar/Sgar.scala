@@ -1,6 +1,6 @@
 package sgar
 
-import java.io.{PrintStream, FileOutputStream, FileInputStream, File}
+import javafx.scene.control.Alert.AlertType
 
 import sgar.GmailStuff.{Bodypart, ToDelete}
 
@@ -21,16 +21,15 @@ import scalafx.stage.DirectoryChooser
 import HBox._
 import Button._
 
+import java.awt.Desktop
+import java.io._
+import java.net.URI
+
 import javafx.beans.value.ObservableValue
 import javafx.scene.control.TreeTableColumn.CellDataFeatures
-import javafx.scene.control.{TreeTableColumn, TreeTableView}
+import javafx.scene.control.{Alert, TextInputDialog, TreeTableColumn, TreeTableView}
 import javafx.util.Callback
 
-/*
-TODO:
-test windows, if backup folder on other drive!
-support oauth2: https://java.net/projects/javamail/pages/OAuth2
- */
 
 object Sgar extends JFXApp {
 
@@ -75,7 +74,6 @@ object Sgar extends JFXApp {
     val ff = getSettingsFile
     println("save config: settings file = " + ff.getPath)
     props.put("username",tfuser.text.value)
-    props.put("password", tfpass.text.value)
     props.put("backupdir", tfbackupdir.text.value)
     props.put("minbytes", tfminbytes.text.value)
     props.put("limit", tflimit.text.value)
@@ -138,7 +136,6 @@ object Sgar extends JFXApp {
   loadSettings()
 
   val tfuser = new TextField { prefWidth = 500; text = props.getProperty("username","???") }
-  val tfpass = new TextField { prefWidth = 500; text = props.getProperty("password","???") }
   val tfbackupdir = new TextField { prefWidth = 500; text = props.getProperty("backupdir","???") }
   val tfminbytes = new TextField { text = props.getProperty("minbytes","10000") }
   val tflimit = new TextField { text = props.getProperty("limit","10") }
@@ -146,7 +143,7 @@ object Sgar extends JFXApp {
   val tfgmailsearch = new ComboBox[String] {
     prefWidth = 500
     tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
-    val strings = ObservableBuffer("size:10KB has:attachment", "size:10KB has:attachment older_than:5m")
+    val strings = ObservableBuffer("size:10KB has:attachment -in:inbox", "size:10KB has:attachment older_than:5m -in:inbox")
     items = strings
     value = props.getProperty("gmailsearch","???")
     editable = true
@@ -172,11 +169,11 @@ object Sgar extends JFXApp {
   def setupGmail(): Unit = {
     GmailStuff.backupdir = new File(tfbackupdir.text.value)
     GmailStuff.username = tfuser.text.value
-    GmailStuff.password = tfpass.text.value
     GmailStuff.label = tflabel.text.value
     GmailStuff.gmailsearch = tfgmailsearch.selectionModel.value.getSelectedItem
     GmailStuff.minbytes = tfminbytes.text.value.toInt
     GmailStuff.limit = tflimit.text.value.toInt
+    GmailStuff.refreshtoken = props.getProperty(tfuser.text.value)
   }
 
   val btFolderList = new Button("Get gmail folder list") {
@@ -237,11 +234,41 @@ object Sgar extends JFXApp {
     }
   }
 
+  val btAuthGoogle = new Button("Authenticate account") {
+    onAction = (ae: ActionEvent) => {
+      try {
+        val weblink = OAuth2google.GeneratePermissionUrl(GmailStuff.clientid)
+        if (Desktop.isDesktopSupported) {
+          val desktop = Desktop.getDesktop
+          if (desktop.isSupported(Desktop.Action.BROWSE)) {
+            new Alert(AlertType.INFORMATION, "A browser window opens. Follow the instructions and copy to code to clipbaord!").showAndWait()
+            desktop.browse(new URI(weblink))
+          } else {
+            new Alert(AlertType.INFORMATION, "Please open the URL shown in the log in a browser, follow the intructions and copy the code to clipboard!").showAndWait()
+            println("please open this URL in your browser:\n" + weblink)
+          }
+        }
+        val dialog = new TextInputDialog()
+        dialog.setTitle("Google OAuth2")
+        dialog.setHeaderText("Google OAuth2 response")
+        dialog.setContentText("Enter Google OAuth2 response:")
+        val res = dialog.showAndWait()
+        if (res.isPresent) {
+          val authcode = res.get()
+          val (_, refreshtoken) = OAuth2google.AuthorizeTokens(GmailStuff.clientid, GmailStuff.clientsecret, authcode)
+          props.put(tfuser.text.value, refreshtoken)
+          println("Authentification succeeded!")
+        }
+      } catch {
+        case e: Exception => e.printStackTrace()
+      }
+    }
+  }
+
   val settingsPane = new VBox(2.0) {
     fillWidth = true
     content ++= List(
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Email:"), tfuser ) },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Password:"), tfpass ) },
+      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Email:"), tfuser, btAuthGoogle ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Backupfolder:"), tfbackupdir, bSelectbackupdir ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Gmail label:"), tflabel ) },
       new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Gmail search:"), tfgmailsearch ) },
@@ -262,8 +289,8 @@ object Sgar extends JFXApp {
         content += new Button("Test") {
           onAction = (ae: ActionEvent) => {
             setupGmail()
-            val f = Future {
-              GmailStuff.doTestodypart()
+            Future {
+              GmailStuff.doTest()
             }
           }
         }

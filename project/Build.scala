@@ -22,7 +22,9 @@ object Build extends Build {
       libraryDependencies ++= Seq(
         "org.scalafx" %% "scalafx" % "8.0.20-R6",
         "com.sun.mail" % "javax.mail" % "1.5.2",
-        "com.sun.mail" % "gimap" % "1.5.2"
+        "com.sun.mail" % "gimap" % "1.5.2",
+        "org.scalaj" %% "scalaj-http" % "1.1.0",
+        "com.googlecode.json-simple" % "json-simple" % "1.1.1"
       )
     )
   )
