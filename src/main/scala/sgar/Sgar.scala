@@ -78,7 +78,7 @@ object Sgar extends JFXApp {
     props.put("minbytes", tfminbytes.text.value)
     props.put("limit", tflimit.text.value)
     props.put("label", tflabel.text.value)
-    props.put("gmailsearch", tfgmailsearch.selectionModel.value.getSelectedItem)
+    props.put("gmailsearch", tfgmailsearch.getValue)
     val fos = new FileOutputStream(ff)
     props.store(fos,null)
     fos.close()
@@ -145,9 +145,9 @@ object Sgar extends JFXApp {
     tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
     val strings = ObservableBuffer("size:10KB has:attachment -in:inbox", "size:10KB has:attachment older_than:5m -in:inbox")
     items = strings
-    value = props.getProperty("gmailsearch","???")
     editable = true
   }
+  tfgmailsearch.setValue(props.getProperty("gmailsearch","???")) // don't use value = !
 
   val bSelectbackupdir = new Button("Select...") {
     onAction = (ae: ActionEvent) => {
@@ -170,7 +170,8 @@ object Sgar extends JFXApp {
     GmailStuff.backupdir = new File(tfbackupdir.text.value)
     GmailStuff.username = tfuser.text.value
     GmailStuff.label = tflabel.text.value
-    GmailStuff.gmailsearch = tfgmailsearch.selectionModel.value.getSelectedItem
+    GmailStuff.gmailsearch = tfgmailsearch.getValue
+    println("gms=" + GmailStuff.gmailsearch)
     GmailStuff.minbytes = tfminbytes.text.value.toInt
     GmailStuff.limit = tflimit.text.value.toInt
     GmailStuff.refreshtoken = props.getProperty(tfuser.text.value)
@@ -286,14 +287,14 @@ object Sgar extends JFXApp {
           }
         }
         content ++= List(btGetEmails, btRemoveAttachments, btFolderList)
-        content += new Button("Test") {
-          onAction = (ae: ActionEvent) => {
-            setupGmail()
-            Future {
-              GmailStuff.doTest()
-            }
-          }
-        }
+//        content += new Button("Test") {
+//          onAction = (ae: ActionEvent) => {
+//            setupGmail()
+//            Future {
+//              GmailStuff.doTest()
+//            }
+//          }
+//        }
       }
     )
   }
