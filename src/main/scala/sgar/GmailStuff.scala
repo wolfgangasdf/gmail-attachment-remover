@@ -160,7 +160,7 @@ object GmailStuff {
       val trash = store.getFolder("[Gmail]/Trash").asInstanceOf[IMAPFolder]
       inbox.open(Folder.READ_WRITE)
       for (todel <- dellist) {
-        println("gmid=" + todel.gmid)
+        println("gmid=" + todel.gmid + " subj=" + todel.subject + " date=" + todel.date)
 
         val msg = inbox.search(new GmailMsgIdTerm(todel.gmid)).head
 
@@ -221,19 +221,29 @@ object GmailStuff {
         if (label != "") { // remove tag label!
           oldlabels -= label
         }
-        println("Restoring labels (without tag-label): " + oldlabels.mkString(";"))
-        inbox.doCommand(new ProtocolCommand {
-          override def doCommand(protocol: IMAPProtocol): AnyRef = {
-            val args = new Argument()
-            args.writeString("" + nmsg.getMessageNumber)
-            args.writeString("+X-GM-LABELS")
-            for (lab <- oldlabels) args.writeString(lab)
-            val r = protocol.command("STORE", args)
-            if (!r.last.isOK) throw new MessagingException("error setting labels of email!")
-            null
-          }
-        })
-
+        if (oldlabels.isEmpty) {
+          println("no labels to restore!")
+        } else {
+          println("Restoring labels (without tag-label): " + oldlabels.mkString(";"))
+          inbox.doCommand(new ProtocolCommand {
+            override def doCommand(protocol: IMAPProtocol): AnyRef = {
+              val args = new Argument()
+              args.writeString("" + nmsg.getMessageNumber)
+              args.writeString("+X-GM-LABELS")
+              for (lab <- oldlabels) args.writeString(lab)
+              val r = protocol.command("STORE", args)
+              if (!r.last.isOK) {
+                println("ERROR: oldlabel=" + oldlabels)
+                println("ERROR: args:\n ")
+                println(args)
+                println("ERROR: responses:\n ")
+                for (rr <- r) println(rr)
+                throw new MessagingException("error setting labels of email!")
+              }
+              null
+            }
+          })
+        }
       }
       inbox.close(true)
       println("Removing attachments finished!")
