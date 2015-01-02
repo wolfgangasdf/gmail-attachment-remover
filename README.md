@@ -84,6 +84,7 @@ Do simply:
 * About Gmail labels and the `label` tag (e.g. `removeattachments`) here: If you use `conversation view` in Gmail, if you add a label, you add it to all messages in the conversation/thread, therefore:
     * Messages might get the tag where it is not intended.
     * After running this program, small messages will remain with the label `removeattachments`, which you might want to remove by hand.
+* This program contains a nice example for doing OAuth2 authentification with local webserver redirect callback, in a few lines code (OAuth2google)!
 * License: GPL
 
 # Contributors #

@@ -30,10 +30,11 @@ import scalaj.http.Http
 
 import scala.collection.mutable.ListBuffer
 import scala.util.control.Breaks._
+import scala.io.BufferedSource
 
-import java.io.{FileInputStream, FileOutputStream}
+import java.io.{PrintWriter, FileInputStream, FileOutputStream}
 import java.util.Properties
-import java.net.{URLDecoder, URLEncoder}
+import java.net.{ServerSocket, URLDecoder, URLEncoder}
 import javax.mail._
 import javax.mail.internet._
 import com.sun.mail.gimap._
@@ -319,12 +320,8 @@ object GmailStuff {
 }
 
 object OAuth2google {
-  // based on http://google-mail-oauth2-tools.googlecode.com/svn/trunk/python/oauth2.py
 
   val GOOGLE_ACCOUNTS_BASE_URL = "https://accounts.google.com"
-
-  // Hardcoded dummy redirect URI for non-web apps.
-  val REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
 
   def AccountsUrl(command: String) = s"$GOOGLE_ACCOUNTS_BASE_URL/$command"
 
@@ -335,12 +332,13 @@ object OAuth2google {
   def FormatUrlParams(params: Seq[(String, String)]) = {
     params map { case (k, v) => s"$k=${UrlEscape(v)}" } mkString "&"
   }
-
-  def GeneratePermissionUrl(client_id: String, scope: String ="https://mail.google.com/") = {
+  def getRedirectURI(localWebserver: Boolean) = if (localWebserver) "http://localhost:9631" else "urn:ietf:wg:oauth:2.0:oob"
+  // generate URL that should be opened in browser, optional for use with localWebserver
+  def GeneratePermissionUrl(client_id: String, localWebserver: Boolean) = {
     val params = Seq(
       ("client_id", client_id),
-      ("redirect_uri", REDIRECT_URI),
-      ("scope", scope),
+      ("redirect_uri", getRedirectURI(localWebserver)),
+      ("scope", "https://mail.google.com/"),
       ("response_type", "code"))
     s"${AccountsUrl("o/oauth2/auth")}?${FormatUrlParams(params)}"
   }
@@ -349,12 +347,30 @@ object OAuth2google {
     s"$base?${FormatUrlParams(params)}"
   }
 
-  def AuthorizeTokens(client_id: String, client_secret: String, authorization_code: String) = {
+  // option I: use built-in webserver to catch response (localWebserver=true above)
+  def catchResponse(): String = {
+    println("Waiting for redirect from Google...")
+    val port = 9631
+    val listener = new ServerSocket(port)
+    val sock = listener.accept()
+    val rec = new BufferedSource(sock.getInputStream).getLines()
+    val s = rec.next()
+    new PrintWriter(sock.getOutputStream, true).println("Gmail attachment remover has received the reply. Please close this window!")
+    sock.close()
+    val re = """GET\ \/\?code=(.*)\ HTTP\/.*""".r
+    s match {
+      case re(code) => code
+      case _ => null
+    }
+  }
+
+  // option II: user had to enter code manually (localWebserver=false above)
+  def AuthorizeTokens(client_id: String, client_secret: String, authorization_code: String, localWebserver: Boolean) = {
     val params = Seq(
       ("client_id", client_id),
       ("client_secret", client_secret),
       ("code", authorization_code),
-      ("redirect_uri", REDIRECT_URI),
+      ("redirect_uri", getRedirectURI(localWebserver)),
       ("grant_type", "authorization_code"))
     val response = Http(AccountsUrl("o/oauth2/token")).postForm(params).asString
     if (!response.isSuccess) throw new Exception("error retrieving auth token response = " + response)
@@ -362,6 +378,7 @@ object OAuth2google {
     (r1.get("access_token").toString, r1.get("refresh_token").toString)
   }
 
+  // call this all the time after initial auth!
   def RefreshTokens(client_id: String, client_secret: String, refresh_token: String) = {
     val params = Seq(
       ("client_id", client_id),

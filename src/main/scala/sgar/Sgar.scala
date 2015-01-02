@@ -330,28 +330,48 @@ object Sgar extends JFXApp {
     tooltip = new Tooltip { text = "This needs to be run only once, or if there are authentification problems!"}
     onAction = (ae: ActionEvent) => {
       try {
-        val weblink = OAuth2google.GeneratePermissionUrl(GmailStuff.clientid)
-        if (Desktop.isDesktopSupported) {
-          val desktop = Desktop.getDesktop
-          if (desktop.isSupported(Desktop.Action.BROWSE)) {
-            new Alert(AlertType.INFORMATION, "A browser window opens. Follow the instructions and copy to code to clipbaord!").showAndWait()
-            desktop.browse(new URI(weblink))
-          } else {
-            new Alert(AlertType.INFORMATION, "Please open the URL shown in the log in a browser, follow the intructions and copy the code to clipboard!").showAndWait()
-            println("please open this URL in your browser:\n" + weblink)
+        var doit = 1 // 1-webserver, 2-manual, -1-done1 -2-done2
+        var authcode = ""
+        do {
+          val weblink = OAuth2google.GeneratePermissionUrl(GmailStuff.clientid, doit == 1)
+          if (Desktop.isDesktopSupported) {
+            val desktop = Desktop.getDesktop
+            if (desktop.isSupported(Desktop.Action.BROWSE)) {
+              new Alert(AlertType.INFORMATION, "A browser window opens. Follow the instructions" + (if (doit == 2) "and copy to code to clipbaord!" else "!")).showAndWait()
+              desktop.browse(new URI(weblink))
+            } else {
+              new Alert(AlertType.INFORMATION, "Please open the URL shown in the log in a browser. Follow the instructions" + (if (doit == 2) "and copy to code to clipbaord!" else "!")).showAndWait()
+              println("please open this URL in your browser:\n" + weblink)
+            }
           }
-        }
-        val dialog = new TextInputDialog()
-        dialog.setTitle("Google OAuth2")
-        dialog.setHeaderText("Google OAuth2 response")
-        dialog.setContentText("Enter Google OAuth2 response:")
-        val res = dialog.showAndWait()
-        if (res.isPresent) {
-          val authcode = res.get()
-          val (_, refreshtoken) = OAuth2google.AuthorizeTokens(GmailStuff.clientid, GmailStuff.clientsecret, authcode)
-          props.put(tfaccount.getValue + "-token", refreshtoken)
-          println("Authentification succeeded!")
-        }
+
+          doit = doit match {
+            case 1 =>
+              val res = OAuth2google.catchResponse()
+              if (res != null) {
+                authcode = res
+                println("Received an auth token...")
+                -1
+              } else {
+                println("Automatic Authentification failed, trying again manually...")
+                2
+              }
+            case 2 =>
+              val dialog = new TextInputDialog()
+              dialog.setTitle("Google OAuth2")
+              dialog.setHeaderText("Google OAuth2 response")
+              dialog.setContentText("Enter Google OAuth2 response:")
+              val res = dialog.showAndWait()
+              if (res.isPresent) {
+                authcode = res.get()
+              }
+              -2
+          }
+        } while (doit > 0)
+        println("Obtaining refresh token...")
+        val (_, refreshtoken) = OAuth2google.AuthorizeTokens(GmailStuff.clientid, GmailStuff.clientsecret, authcode, doit == -1)
+        props.put(tfaccount.getValue + "-token", refreshtoken)
+        println("Authentification succeeded!")
       } catch {
         case e: Exception => e.printStackTrace()
       }
