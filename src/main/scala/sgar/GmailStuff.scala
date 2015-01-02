@@ -1,3 +1,27 @@
+/*
+    This file is part of SGAR - Scala Gmail attachment Remover.
+
+    SGAR is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    SGAR is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
+ * This file contains all the network communication with Gmail.
+ *
+ * All public useful methods have their own exception handling, i.e., they can be called in another thread (e.g., future).
+ *
+ */
+
 package sgar
 
 import org.json.simple.{JSONObject, JSONValue}
@@ -18,13 +42,6 @@ import com.sun.mail.imap.{IMAPMessage, IMAPFolder}
 import com.sun.mail.imap.IMAPFolder.ProtocolCommand
 import com.sun.mail.imap.protocol.IMAPProtocol
 
-
-/*
- * all public useful methods have their own exception handling, i.e., they can be called in another thread (e.g., future)!
- *
- * flags: gmail seems to use only "flagged" == starred and "seen" == read
- *
- */
 
 object GmailStuff {
   var backupdir: java.io.File = null
@@ -267,6 +284,7 @@ object GmailStuff {
     }
   }
 
+/*
   def doTest() {
     try {
       connect()
@@ -293,6 +311,7 @@ object GmailStuff {
       store.close()
     }
   }
+*/
 
   def cleanup(): Unit = {
     if (store != null) if (store.isConnected) store.close()

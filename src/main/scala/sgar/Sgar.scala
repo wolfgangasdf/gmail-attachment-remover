@@ -1,12 +1,34 @@
-package sgar
 
-import javafx.scene.control.Alert.AlertType
+/*
+    This file is part of SGAR - Scala Gmail attachment Remover.
+
+    SGAR is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    SGAR is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
+ * This file contains the GUI made with javafx/scalafx
+ *
+ */
+
+package sgar
 
 import sgar.GmailStuff.{Bodypart, ToDelete}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.language.reflectiveCalls
 
 import scalafx.application.JFXApp
 import scalafx.Includes._
@@ -21,15 +43,15 @@ import scalafx.stage.DirectoryChooser
 import HBox._
 import Button._
 
-import java.awt.Desktop
-import java.io._
-import java.net.URI
-
 import javafx.beans.value.ObservableValue
 import javafx.scene.control.TreeTableColumn.CellDataFeatures
 import javafx.scene.control.{Alert, TextInputDialog, TreeTableColumn, TreeTableView}
 import javafx.util.Callback
+import javafx.scene.control.Alert.AlertType
 
+import java.awt.Desktop
+import java.io._
+import java.net.URI
 
 object Sgar extends JFXApp {
 
@@ -150,8 +172,9 @@ object Sgar extends JFXApp {
 
   val ttv = new TreeTableView[TreeThing] {
     val colwidths = List(200.0, 200.0, 250.0, 200.0)
+    val colheaders = List("Gmail ID/Attachment #", "Subject/Filename", "Date/Size", "Sender/Type")
     for (i <- 0 to colwidths.length - 1) {
-      val ttc1 = new TreeTableColumn[TreeThing, String] {
+      val ttc1 = new TreeTableColumn[TreeThing, String](colheaders(i)) {
         setPrefWidth(colwidths(i))
         setCellValueFactory( new Callback[TreeTableColumn.CellDataFeatures[TreeThing, String], ObservableValue[String]] {
           override def call(param: CellDataFeatures[TreeThing, String]): ObservableValue[String] =
@@ -165,19 +188,22 @@ object Sgar extends JFXApp {
     setShowRoot(false)
   }
 
+  val btRemoveRows = new Button("Remove selected rows") {
+    tooltip = new Tooltip { text = "... to prevent attachments from being removed"}
+    onAction = (ae: ActionEvent) => {
+      for (idx <- ttv.getSelectionModel.getSelectedCells) {
+        idx.getTreeItem.getParent.children -= idx.getTreeItem
+      }
+    }
+  }
+
   val listPane = new VBox {
     fillWidth = true
     content ++= Seq(
       ttv,
       new HBox {
         content ++= Seq(
-          new Button("remove selected rows") {
-            onAction = (ae: ActionEvent) => {
-              for (idx <- ttv.getSelectionModel.getSelectedCells) {
-                idx.getTreeItem.getParent.children -= idx.getTreeItem
-              }
-            }
-          }
+          btRemoveRows
         )
       }
     )
@@ -185,7 +211,7 @@ object Sgar extends JFXApp {
 
   val tfaccount = new ChoiceBox[String] {
     prefWidth = 300
-    tooltip = new Tooltip { text = "Gmail adress" }
+    tooltip = new Tooltip { text = "Gmail email adress" }
     items = new ObservableBuffer[String]()
     value.onChange {
       updatePropertiesForAccount() // uses old account
@@ -198,10 +224,10 @@ object Sgar extends JFXApp {
   println("Logging to file " + logfile.getPath)
 
 
-  val tfbackupdir = new TextField { prefWidth = 500; text = "" }
-  val tfminbytes = new TextField { text =  "" }
-  val tflimit = new TextField { text = "" }
-  val tflabel = new TextField { prefWidth = 500; text = "" }
+  val tfbackupdir = new TextField { prefWidth = 500; text = "" ; tooltip = new Tooltip { text = "Emails are saved here before attachments are removed" } }
+  val tfminbytes = new TextField { text =  "" ; tooltip = new Tooltip { text = "Minimum size of attachments for being considered for removal" } }
+  val tflimit = new TextField { text = "" ; tooltip = new Tooltip { text = "Maximum number of emails to be considered in a single run" } }
+  val tflabel = new TextField { prefWidth = 500; text = "" ; tooltip = new Tooltip { text = "Only consider emails having this label" } }
   val tfgmailsearch = new ComboBox[String] {
     prefWidth = 500
     tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
@@ -224,6 +250,7 @@ object Sgar extends JFXApp {
       btFolderList.disable = !flist
       btGetEmails.disable = !getemails
       btRemoveAttachments.disable = !rmattach
+      btRemoveRows.disable = !(getemails && rmattach)
     }
   }
 
@@ -239,6 +266,7 @@ object Sgar extends JFXApp {
   }
 
   val btFolderList = new Button("Get gmail folder list") {
+    tooltip = new Tooltip { text = "Mainly for debug purposes. Output is shown in log."}
     onAction = (ae: ActionEvent) => {
       setButtons()
       setupGmail()
@@ -250,6 +278,7 @@ object Sgar extends JFXApp {
   }
 
   val btGetEmails = new Button("Find emails") {
+    tooltip = new Tooltip { text = "Find emails based on selected criteria"}
     onAction = (ae: ActionEvent) => {
       setButtons()
       setupGmail()
@@ -271,6 +300,7 @@ object Sgar extends JFXApp {
   }
 
   val btRemoveAttachments = new Button("Remove attachments") {
+    tooltip = new Tooltip { text = "Remove all attachments shown in the table below"}
     onAction = (ae: ActionEvent) => {
       setButtons()
       setupGmail()
@@ -297,6 +327,7 @@ object Sgar extends JFXApp {
   }
 
   val btAuthGoogle = new Button("Authenticate account") {
+    tooltip = new Tooltip { text = "This needs to be run only once, or if there are authentification problems!"}
     onAction = (ae: ActionEvent) => {
       try {
         val weblink = OAuth2google.GeneratePermissionUrl(GmailStuff.clientid)
@@ -337,6 +368,7 @@ object Sgar extends JFXApp {
           tfaccount,
           btAuthGoogle,
           new Button("Add") {
+            tooltip = new Tooltip { text = "Add a new Gmail account"}
             onAction = (ae: ActionEvent) => {
               val dialog = new TextInputDialog()
               dialog.setTitle("New account")
@@ -350,6 +382,7 @@ object Sgar extends JFXApp {
             }
           },
           new Button("Remove") {
+            tooltip = new Tooltip { text = "Remove the selected Gmail account from the list"}
             onAction = (ae: ActionEvent) => {
               val iter = props.entrySet.iterator
               while (iter.hasNext) {
@@ -410,6 +443,8 @@ object Sgar extends JFXApp {
     }
     cont.prefWidth <== scene.width
     cont.prefHeight <== scene.height
+
+    cont.prefWidth.onChange( ttv.getColumns.last.setPrefWidth(cont.prefWidth.value - ttv.colwidths.slice(0, ttv.colwidths.length-1).sum) )
   }
 
   override def stopApp(): Unit = {
