@@ -29,26 +29,20 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.reflectiveCalls
-
-import scalafx.application.JFXApp
 import scalafx.Includes._
-import scalafx.beans.property.StringProperty
+import scalafx.application.JFXApp
+import scalafx.beans.property.ReadOnlyStringWrapper
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
-import scalafx.geometry.Pos
+import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.Scene
 import scalafx.scene.control._
-import scalafx.scene.layout.{HBox, VBox}
+import scalafx.scene.layout._
 import scalafx.stage.DirectoryChooser
+import scalafx.scene.control.Alert.AlertType
 import HBox._
 import Button._
-
-import javafx.beans.value.ObservableValue
-import javafx.scene.control.TreeTableColumn.CellDataFeatures
-import javafx.scene.control.{Alert, TextInputDialog, TreeTableColumn, TreeTableView}
-import javafx.util.Callback
-import javafx.scene.control.Alert.AlertType
-
+import TreeTableColumn._
 import java.awt.Desktop
 import java.io._
 import java.net.URI
@@ -57,16 +51,18 @@ object Sgar extends JFXApp {
 
   val props = new java.util.Properties()
 
-  var currentAccount: String = null
+  val home = "https://bitbucket.org/wolfgang/gmail-attachment-remover"
+  val space = 4.0
+  var currentAccount: String = _
 
   // redirect console output, must happen on top of this object!
   val oldOut = System.out
   val oldErr = System.err
-  var logps: FileOutputStream = null
+  var logps: FileOutputStream = _
   System.setOut(new PrintStream(new MyConsole(false), true))
   System.setErr(new PrintStream(new MyConsole(true), true))
 
-  val logfile = File.createTempFile("sgar",".txt")
+  val logfile = Helpers.createTempFile("sgar",".txt")
   logps = new FileOutputStream(logfile)
 
   class MyConsole(errchan: Boolean) extends java.io.OutputStream {
@@ -89,16 +85,14 @@ object Sgar extends JFXApp {
     text = "============= Application log ==================== \n"
   }
 
-  def getSettingsFile = {
-    val mac = "(.*mac.*)".r
-    val win = "(.*win.*)".r
-    val nix = "(.*nix.*)".r
-    val fp: String = System.getProperty("os.name").toLowerCase match {
-      case mac(_) => System.getProperty("user.home") + "/Library/Application Support/Sgar"
-      case win(_) => System.getenv("APPDATA") + File.separator +  "Sgar"
-      case nix(_) => System.getProperty("user.home") + "/.sgar"
-      case _ => throw new Exception("operating system not known")
-    }
+  def getSettingsFile: File = {
+    val fp: String = if (Helpers.isMac) {
+      System.getProperty("user.home") + "/Library/Application Support/Sgar"
+    } else if (Helpers.isLinux) {
+      System.getProperty("user.home") + "/.sgar"
+    } else if (Helpers.isWin) {
+      System.getenv("APPDATA") + File.separator +  "Sgar"
+    } else throw new Exception("operating system not found")
     new File(fp + File.separator + "sgarsettings.txt")
   }
 
@@ -123,15 +117,15 @@ object Sgar extends JFXApp {
 
   def updateAccountsGuiFromProperties(): Unit = {
     val accprop = props.getProperty("accounts", "")
-    if (tfaccount.items != null) {
-      tfaccount.items.get.clear()
-      if (accprop != "") for (a <- accprop.split(",,,")) { tfaccount.items.get += a }
-      tfaccount.getSelectionModel.selectFirst()
+    if (cbaccount.items != null) {
+      cbaccount.items.get.clear()
+      if (accprop != "") for (a <- accprop.split(",,,")) { cbaccount.items.get += a }
+      cbaccount.getSelectionModel.selectFirst()
     }
   }
 
-  def updateAccountsPropertiesFromGui() = {
-    props.put("accounts", tfaccount.items.get.mkString(",,,"))
+  def updateAccountsPropertiesFromGui(): Unit = {
+    props.put("accounts", cbaccount.items.get.mkString(",,,"))
   }
 
   def updatePropertiesForAccount(): Unit = {
@@ -140,21 +134,20 @@ object Sgar extends JFXApp {
       props.put(currentAccount + "-minbytes", tfminbytes.text.value)
       props.put(currentAccount + "-limit", tflimit.text.value)
       props.put(currentAccount + "-label", tflabel.text.value)
-      props.put(currentAccount + "-gmailsearch", tfgmailsearch.getValue)
+      props.put(currentAccount + "-gmailsearch", cbgmailsearch.getValue)
     }
   }
 
   def updateGuiForAccount(): Unit = {
-    currentAccount = tfaccount.getValue
+    currentAccount = cbaccount.getValue
     if (currentAccount != null) {
       tfbackupdir.text = props.getProperty(currentAccount + "-backupdir", "???")
       tfminbytes.text = props.getProperty(currentAccount + "-minbytes", "10000")
       tflimit.text = props.getProperty(currentAccount + "-limit", "10")
       tflabel.text = props.getProperty(currentAccount + "-label", "removeattachments")
-      tfgmailsearch.setValue(props.getProperty(currentAccount + "-gmailsearch", "???")) // don't use value = !
+      cbgmailsearch.setValue(props.getProperty(currentAccount + "-gmailsearch", "???")) // don't use value = !
     }
   }
-
 
 
   class TreeThing(val toDelete: ToDelete, val bodypart: Bodypart) {
@@ -171,46 +164,48 @@ object Sgar extends JFXApp {
   tiroot.setExpanded(true)
 
   val ttv = new TreeTableView[TreeThing] {
-    val colwidths = List(200.0, 200.0, 250.0, 200.0)
+    columnResizePolicy = TreeTableView.ConstrainedResizePolicy
     val colheaders = List("Gmail ID/Attachment #", "Subject/Filename", "Date/Size", "Sender/Type")
-    for (i <- 0 to colwidths.length - 1) {
-      val ttc1 = new TreeTableColumn[TreeThing, String](colheaders(i)) {
-        setPrefWidth(colwidths(i))
-        setCellValueFactory( new Callback[TreeTableColumn.CellDataFeatures[TreeThing, String], ObservableValue[String]] {
-          override def call(param: CellDataFeatures[TreeThing, String]): ObservableValue[String] =
-            new StringProperty(param.getValue.getValue.getColumn(i))
-        })
+    for (i <- colheaders.indices) {
+      columns += new TreeTableColumn[TreeThing, String](colheaders(i)) {
+        cellValueFactory = { p => ReadOnlyStringWrapper(p.value.getValue.getColumn(i)) }
       }
-      getColumns.add(ttc1)
     }
-
-    setRoot(tiroot)
-    setShowRoot(false)
+    selectionModel.value.selectionMode = SelectionMode.Multiple
+    root = tiroot
+    showRoot = false
   }
 
   val btRemoveRows = new Button("Remove selected rows") {
     tooltip = new Tooltip { text = "... to prevent attachments from being removed"}
-    onAction = (ae: ActionEvent) => {
-      for (idx <- ttv.getSelectionModel.getSelectedCells) {
-        idx.getTreeItem.getParent.children -= idx.getTreeItem
-      }
+    onAction = (_: ActionEvent) => {
+      tiroot.getChildren.removeAll(ttv.getSelectionModel.getSelectedItems)
+//      for (cells <- ttv.getSelectionModel.getSelectedItems) {
+//        println(s"remove cell: " + cells)
+//        cells.getTreeItem.getParent.children -= cells.getTreeItem
+//      }
+      //      for (cells <- ttv.getSelectionModel.getSelectedCells) {
+//        println(s"remove cell: " + cells)
+//        cells.getTreeItem.getParent.children -= cells.getTreeItem
+//      }
     }
   }
 
-  val listPane = new VBox {
+  val listPane = new VBox(space) {
     fillWidth = true
-    content ++= Seq(
+    children ++= Seq(
       ttv,
       new HBox {
-        content ++= Seq(
+        children ++= Seq(
           btRemoveRows
         )
       }
     )
   }
 
-  val tfaccount = new ChoiceBox[String] {
-    prefWidth = 300
+  val cbaccount = new ChoiceBox[String] {
+    hgrow = Priority.Always
+    maxWidth = Double.MaxValue
     tooltip = new Tooltip { text = "Gmail email adress" }
     items = new ObservableBuffer[String]()
     value.onChange {
@@ -224,12 +219,23 @@ object Sgar extends JFXApp {
   println("Logging to file " + logfile.getPath)
 
 
-  val tfbackupdir = new TextField { prefWidth = 500; text = "" ; tooltip = new Tooltip { text = "Emails are saved here before attachments are removed" } }
+  val tfbackupdir = new TextField {
+    hgrow = Priority.Always
+    maxWidth = Double.MaxValue
+    text = ""
+    tooltip = new Tooltip { text = "Emails are saved here before attachments are removed" }
+  }
   val tfminbytes = new TextField { text =  "" ; tooltip = new Tooltip { text = "Minimum size of attachments for being considered for removal" } }
   val tflimit = new TextField { text = "" ; tooltip = new Tooltip { text = "Maximum number of emails to be considered in a single run" } }
-  val tflabel = new TextField { prefWidth = 500; text = "" ; tooltip = new Tooltip { text = "Only consider emails having this label" } }
-  val tfgmailsearch = new ComboBox[String] {
-    prefWidth = 500
+  val tflabel = new TextField {
+    hgrow = Priority.Always
+    maxWidth = Double.MaxValue
+    text = ""
+    tooltip = new Tooltip { text = "Only consider emails having this label" }
+  }
+  val cbgmailsearch = new ComboBox[String] {
+    hgrow = Priority.Always
+    maxWidth = Double.MaxValue
     tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
     val strings = ObservableBuffer("size:1MB has:attachment -in:inbox", "size:1MB has:attachment older_than:12m -in:inbox")
     items = strings
@@ -237,7 +243,7 @@ object Sgar extends JFXApp {
   }
 
   val bSelectbackupdir = new Button("Select...") {
-    onAction = (ae: ActionEvent) => {
+    onAction = (_: ActionEvent) => {
       val fcbackupdir = new DirectoryChooser {
         title = "Pick backup folder..."
       }
@@ -257,29 +263,42 @@ object Sgar extends JFXApp {
   def setupGmail(): Unit = {
     updatePropertiesForAccount()
     GmailStuff.backupdir = new File(tfbackupdir.text.value)
-    GmailStuff.username = tfaccount.getValue
+    GmailStuff.username = cbaccount.getValue
     GmailStuff.label = tflabel.text.value
-    GmailStuff.gmailsearch = tfgmailsearch.getValue
+    GmailStuff.gmailsearch = cbgmailsearch.getValue
     GmailStuff.minbytes = tfminbytes.text.value.toInt
     GmailStuff.limit = tflimit.text.value.toInt
-    GmailStuff.refreshtoken = props.getProperty(tfaccount.getValue + "-token")
+    GmailStuff.refreshtoken = props.getProperty(cbaccount.getValue + "-token")
   }
 
   val btFolderList = new Button("Get gmail folder list") {
     tooltip = new Tooltip { text = "Mainly for debug purposes. Output is shown in log."}
-    onAction = (ae: ActionEvent) => {
+    onAction = (_: ActionEvent) => {
       setButtons()
       setupGmail()
       Future {
         GmailStuff.getAllFolders
-        setButtons(flist = true, getemails = true, rmattach = false)
+        setButtons(flist = true, getemails = true)
+      }
+    }
+  }
+
+  val btAbout = new Button("About") {
+    tooltip = new Tooltip { text = s"Open website $home"}
+    onAction = (_: ActionEvent) => {
+      println(s"Open $home ...")
+      if (Desktop.isDesktopSupported) {
+        val desktop = Desktop.getDesktop
+        if (desktop.isSupported(Desktop.Action.BROWSE)) {
+          desktop.browse(new URI(home))
+        }
       }
     }
   }
 
   val btGetEmails = new Button("Find emails") {
     tooltip = new Tooltip { text = "Find emails based on selected criteria"}
-    onAction = (ae: ActionEvent) => {
+    onAction = (_: ActionEvent) => {
       setButtons()
       setupGmail()
       tiroot.children.clear()
@@ -301,7 +320,7 @@ object Sgar extends JFXApp {
 
   val btRemoveAttachments = new Button("Remove attachments") {
     tooltip = new Tooltip { text = "Remove all attachments shown in the table below"}
-    onAction = (ae: ActionEvent) => {
+    onAction = (_: ActionEvent) => {
       setButtons()
       setupGmail()
       val dellist = new ListBuffer[ToDelete]
@@ -321,14 +340,14 @@ object Sgar extends JFXApp {
       Future {
         GmailStuff.doDelete(dellist)
         runUI { tiroot.children.clear() }
-        setButtons(flist = true, getemails = true, rmattach = false)
+        setButtons(flist = true, getemails = true)
       }
     }
   }
 
   val btAuthGoogle = new Button("Authenticate account") {
     tooltip = new Tooltip { text = "This needs to be run only once, or if there are authentification problems!"}
-    onAction = (ae: ActionEvent) => {
+    onAction = (_: ActionEvent) => {
       try {
         var doit = 1 // 1-webserver, 2-manual, -1-done1 -2-done2
         var authcode = ""
@@ -337,10 +356,10 @@ object Sgar extends JFXApp {
           if (Desktop.isDesktopSupported) {
             val desktop = Desktop.getDesktop
             if (desktop.isSupported(Desktop.Action.BROWSE)) {
-              new Alert(AlertType.INFORMATION, "A browser window opens. Follow the instructions" + (if (doit == 2) "and copy to code to clipbaord!" else "!")).showAndWait()
+              new Alert(AlertType.Information, "A browser window opens. Follow the instructions" + (if (doit == 2) "and copy to code to clipbaord!" else "!")).showAndWait()
               desktop.browse(new URI(weblink))
             } else {
-              new Alert(AlertType.INFORMATION, "Please open the URL shown in the log in a browser. Follow the instructions" + (if (doit == 2) "and copy to code to clipbaord!" else "!")).showAndWait()
+              new Alert(AlertType.Information, "Please open the URL shown in the log in a browser. Follow the instructions" + (if (doit == 2) "and copy to code to clipbaord!" else "!")).showAndWait()
               println("please open this URL in your browser:\n" + weblink)
             }
           }
@@ -362,15 +381,15 @@ object Sgar extends JFXApp {
               dialog.setHeaderText("Google OAuth2 response")
               dialog.setContentText("Enter Google OAuth2 response:")
               val res = dialog.showAndWait()
-              if (res.isPresent) {
-                authcode = res.get()
+              if (res.nonEmpty) {
+                authcode = res.get
               }
               -2
           }
         } while (doit > 0)
         println("Obtaining refresh token...")
         val (_, refreshtoken) = OAuth2google.AuthorizeTokens(GmailStuff.clientid, GmailStuff.clientsecret, authcode, doit == -1)
-        props.put(tfaccount.getValue + "-token", refreshtoken)
+        props.put(cbaccount.getValue + "-token", refreshtoken)
         println("Authentification succeeded!")
       } catch {
         case e: Exception => e.printStackTrace()
@@ -378,80 +397,67 @@ object Sgar extends JFXApp {
     }
   }
 
-  val settingsPane = new VBox(2.0) {
-    fillWidth = true
-    content ++= List(
-      new HBox {
+  val settingsPane = new VBox(space) {
+    children ++= List(
+      new HBox(space) {
         alignment = Pos.CenterLeft
-        content ++= List(
-          new Label("Gmail Account:"),
-          tfaccount,
+        children ++= List(
+          new Label("Gmail Account: "),
+          cbaccount,
           btAuthGoogle,
           new Button("Add") {
             tooltip = new Tooltip { text = "Add a new Gmail account"}
-            onAction = (ae: ActionEvent) => {
+            onAction = (_: ActionEvent) => {
               val dialog = new TextInputDialog()
               dialog.setTitle("New account")
               dialog.setHeaderText("Enter gmail address")
               val res = dialog.showAndWait()
-              if (res.isPresent) {
-                val newemail = res.get()
-                tfaccount.items.get += newemail
-                tfaccount.setValue(newemail)
-              }
+              res.foreach( r => {
+                cbaccount.getItems.add(r)
+                cbaccount.setValue(r)
+              })
             }
           },
           new Button("Remove") {
             tooltip = new Tooltip { text = "Remove the selected Gmail account from the list"}
-            onAction = (ae: ActionEvent) => {
+            onAction = (_: ActionEvent) => {
               val iter = props.entrySet.iterator
               while (iter.hasNext) {
                 val entry = iter.next()
                 if (entry.getKey.asInstanceOf[String].startsWith(currentAccount + "-")) iter.remove()
               }
               currentAccount = null // prevent from saving deleted account to properties
-              tfaccount.items.get -= tfaccount.getValue
-              if (tfaccount.items.get.nonEmpty) tfaccount.getSelectionModel.selectFirst()
+              cbaccount.items.get -= cbaccount.getValue
+              if (cbaccount.items.get.nonEmpty) cbaccount.getSelectionModel.selectFirst()
             }
           }
         )
+        setHgrow(cbaccount, Priority.Always)
       },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Backupfolder:"), tfbackupdir, bSelectbackupdir ) },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Gmail label:"), tflabel ) },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List( new Label("Gmail search:"), tfgmailsearch ) },
-      new HBox { alignment = Pos.CenterLeft ; content ++= List(
-        new Label("Minimum Attachment size (bytes):"),
+      new HBox(space) { alignment = Pos.CenterLeft ; children ++= List( new Label("Backupfolder: "), tfbackupdir, bSelectbackupdir ) },
+      new HBox(space) { alignment = Pos.CenterLeft ; children ++= List( new Label("Gmail label: "), tflabel ) },
+      new HBox(space) { alignment = Pos.CenterLeft ; children ++= List( new Label("Gmail search: "), cbgmailsearch ) },
+      new HBox(space) { alignment = Pos.CenterLeft ; children ++= List(
+        new Label("Minimum Attachment size (bytes): "),
         tfminbytes,
         new Label("     Limit no. messages:"),
         tflimit
       ) },
-      new HBox {
+      new HBox(space) {
         alignment = Pos.Center
-        content += new Button("Quit") {
-          onAction = (ae: ActionEvent) => {
+        children += new Button("Quit") {
+          onAction = (_: ActionEvent) => {
             stopApp()
           }
         }
-        content ++= List(btGetEmails, btRemoveAttachments, btFolderList)
-//        content += new Button("Test") {
-//          onAction = (ae: ActionEvent) => {
-//            setupGmail()
-//            Future {
-//              GmailStuff.doTest()
-//            }
-//          }
-//        }
+        children ++= List(btGetEmails, btRemoveAttachments, btFolderList, btAbout)
       }
     )
   }
 
-  val cont = new VBox {
-    fillWidth = true
-    content ++= Seq(
-      settingsPane,
-      listPane,
-      logView
-    )
+  val cont = new VBox(space) {
+    children ++= List(settingsPane, listPane, logView)
+    padding = Insets(2*space)
   }
 
   stage = new JFXApp.PrimaryStage {
@@ -459,12 +465,8 @@ object Sgar extends JFXApp {
     width = 1000
     height = 750
     scene = new Scene {
-      content = cont
+      root = cont
     }
-    cont.prefWidth <== scene.width
-    cont.prefHeight <== scene.height
-
-    cont.prefWidth.onChange( ttv.getColumns.last.setPrefWidth(cont.prefWidth.value - ttv.colwidths.slice(0, ttv.colwidths.length-1).sum) )
   }
 
   override def stopApp(): Unit = {
@@ -479,9 +481,23 @@ object Sgar extends JFXApp {
 
   // init things
 
-    setButtons(flist = true, getemails = true, rmattach = false)
+    setButtons(flist = true, getemails = true)
 
     updateAccountsGuiFromProperties()
 
 
+}
+
+
+object Helpers {
+  def isMac: Boolean = System.getProperty("os.name").toLowerCase.contains("mac")
+  def isLinux: Boolean = System.getProperty("os.name").toLowerCase.contains("nix")
+  def isWin: Boolean = System.getProperty("os.name").toLowerCase.contains("win")
+  def createTempFile(prefix: String, suffix: String): File = { // standard io.File.createTempFile points often to strange location
+  val tag = System.currentTimeMillis().toString
+    var dir = System.getProperty("java.io.tmpdir")
+    if (Helpers.isLinux || Helpers.isMac) if (new File("/tmp").isDirectory)
+      dir = "/tmp"
+    new File(dir + "/" + prefix + "-" + tag + suffix)
+  }
 }

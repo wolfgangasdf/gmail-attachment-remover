@@ -45,7 +45,7 @@ import com.sun.mail.imap.protocol.IMAPProtocol
 
 
 object GmailStuff {
-  var backupdir: java.io.File = null
+  var backupdir: java.io.File = _
   var username = ""
   var gmailsearch = ""
   var minbytes = 0
@@ -53,14 +53,14 @@ object GmailStuff {
   var label = ""
   var refreshtoken = ""
 
-  var store: Store = null
-  var session: Session = null
+  var store: Store = _
+  var session: Session = _
 
   // OAuth2
   val clientid = "217209351804-pf92dc077qrvtotiro7b9lcl6pjrhfhq.apps.googleusercontent.com"
   val clientsecret = "WqZuf6h_xD0al4vH5jolJyds"
 
-  def heads(s: String, len: Int) = if (s != null) s.substring(0, math.min(len, s.length)) else ""
+  def heads(s: String, len: Int): String = if (s != null) s.substring(0, math.min(len, s.length)) else ""
 
   class Bodypart(val bpi: Int, val filename: String, val filesize: Int, val contentType: String)
 
@@ -72,7 +72,7 @@ object GmailStuff {
     override def toString: String = gmid.toString + ": " + heads(subject, 10) + "; bps: " + bodyparts.map(bp => bp.bpi).mkString(",")
   }
 
-  def flagToString(f: Flags.Flag) = {
+  def flagToString(f: Flags.Flag): String = {
     f match {
       case Flags.Flag.ANSWERED => "answered"
       case Flags.Flag.DELETED => "deleted"
@@ -145,7 +145,7 @@ object GmailStuff {
           val mp = gm.getContent
           mp match {
             case mmpm: MimeMultipart =>
-              for (i <- 0 to mmpm.getCount - 1) {
+              for (i <- 0 until mmpm.getCount) {
                 val bp = mmpm.getBodyPart(i)
                 if (bp.getSize > minbytes && bp.getFileName != null) {
                   bps += new Bodypart(i, bp.getFileName, bp.getSize, bp.getContentType)
@@ -174,7 +174,7 @@ object GmailStuff {
   def doDelete(dellist: ListBuffer[ToDelete]) {
     try {
       var startns: Long = -1
-      var inbox: IMAPFolder = null
+      var allmail: IMAPFolder = null
       var trash: IMAPFolder = null
       println("deleting attachments of " + dellist.length + " emails...")
       var count = 0
@@ -185,15 +185,15 @@ object GmailStuff {
           println("----- Re-connect after 10 minutes...")
           if (store.isConnected) store.close()
           connect()
-          inbox = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
+          allmail = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]
           trash = store.getFolder("[Gmail]/Trash").asInstanceOf[IMAPFolder]
-          inbox.open(Folder.READ_WRITE)
+          allmail.open(Folder.READ_WRITE)
           startns = System.nanoTime
           println("----- Re-connected!")
         }
         println(s"[$count/${dellist.length}] gmid=${todel.gmid} subj=${todel.subject} date=${todel.date}")
 
-        val msg = inbox.search(new GmailMsgIdTerm(todel.gmid)).head
+        val msg = allmail.search(new GmailMsgIdTerm(todel.gmid)).head
 
         // backup labels & flags (do before any msg download which sets SEEN flag!)
         val oldlabels = msg.asInstanceOf[GmailMessage].getLabels.toBuffer[String]
@@ -202,6 +202,10 @@ object GmailStuff {
         println("backup message...")
         val backupfile = new java.io.File(backupdir, todel.gmid.toString + ".msg")
         println("  backupfile=" + backupfile.getPath)
+        val parent = backupfile.getParentFile
+        if (parent != null)
+          if (!parent.exists())
+            parent.mkdirs()
         val os = new FileOutputStream(backupfile)
         msg.writeTo(os)
         os.close()
@@ -228,27 +232,55 @@ object GmailStuff {
         newmsg.saveChanges()
 
         println("putting message back into gmail...")
-        val resm = inbox.addMessages(Array(newmsg)).head
+        val resm = allmail.addMessages(Array(newmsg)).head
         val newgmailid = resm.asInstanceOf[GmailMessage].getMsgId
         println(" newmsg gmail id=" + newgmailid)
 
-        println("deleting message in gmail and emptying trash...")
-        inbox.copyMessages(Array(msg), trash)
+        println("deleting message in gmail and emptying trash (can take long)...")
+        allmail.copyMessages(Array(msg), trash)
         trash.open(Folder.READ_WRITE)
         val tmsgs = trash.getMessages
         for (tmsg <- tmsgs) tmsg.setFlag(Flags.Flag.DELETED, true)
         trash.close(true)
 
+        println("re-open folder...")
         // re-open folder, this is essential for doCommand() to work below!
-        inbox.close(true)
-        inbox.open(Folder.READ_WRITE)
+        allmail.close(true)
+        allmail.open(Folder.READ_WRITE)
 
-        val nmsgx = inbox.search(new GmailMsgIdTerm(newgmailid)).head
+        val nmsgx = allmail.search(new GmailMsgIdTerm(newgmailid)).head
         val nmsg = nmsgx.asInstanceOf[IMAPMessage]
 
-        // restore flags
-        inbox.setFlags(Array(nmsgx), oldflags, true)
+        // restore flags like unread
+        println("old system flags=[" + oldflags.getSystemFlags.mkString(";") + "][" + oldflags.getSystemFlags.map(f => flagToString(f)).mkString(";") + "] user flags=" + oldflags.getUserFlags.mkString(";"))
+        allmail.setFlags(Array(nmsgx), oldflags, true) // 2016: this seems to also restore labels/folders!
 
+        // TODO: this doesn't work: all flags gone... because of threaded view/all emails in thread have tag?
+        // should work: http://stackoverflow.com/questions/17263500/how-to-remove-a-label-from-an-email-message-from-gmail-by-using-the-imap-protoco
+        if (label != "") {
+          println(s"Remove label [$label]...")
+          allmail.doCommand(new ProtocolCommand {
+            override def doCommand(protocol: IMAPProtocol): AnyRef = {
+              val args = new Argument()
+              args.writeString("" + nmsg.getMessageNumber)
+              args.writeString("-X-GM-LABELS")
+              args.writeString(label)
+              val r = protocol.command("STORE", args)
+              if (!r.last.isOK) {
+                println(s"ERROR removing label/folder [$label]!")
+                println("ERROR: args:\n ")
+                println(args)
+                println("ERROR: responses:\n ")
+                for (rr <- r) println(rr)
+                throw new MessagingException("error setting labels of email!")
+              }
+              null
+            }
+          })
+        }
+
+
+        /* labels are now in systemflags??? I have to restore the systemflags because of unread etc.
         if (label != "") { // remove tag label!
           oldlabels -= label
         }
@@ -256,7 +288,7 @@ object GmailStuff {
           println("no labels to restore!")
         } else {
           println("Restoring labels (without tag-label): " + oldlabels.mkString(";"))
-          inbox.doCommand(new ProtocolCommand {
+          allmail.doCommand(new ProtocolCommand {
             override def doCommand(protocol: IMAPProtocol): AnyRef = {
               val args = new Argument()
               args.writeString("" + nmsg.getMessageNumber)
@@ -275,8 +307,9 @@ object GmailStuff {
             }
           })
         }
+        */
       }
-      inbox.close(true)
+      allmail.close(true)
       println("Removing attachments finished!")
     } catch {
       case e: Exception => e.printStackTrace()
@@ -325,16 +358,16 @@ object OAuth2google {
 
   def AccountsUrl(command: String) = s"$GOOGLE_ACCOUNTS_BASE_URL/$command"
 
-  def UrlEscape(text: String) = URLEncoder.encode(text, "UTF-8")
+  def UrlEscape(text: String): String = URLEncoder.encode(text, "UTF-8")
 
-  def UrlUnescape(text: String) = URLDecoder.decode(text, "UTF-8")
+  def UrlUnescape(text: String): String = URLDecoder.decode(text, "UTF-8")
 
-  def FormatUrlParams(params: Seq[(String, String)]) = {
+  def FormatUrlParams(params: Seq[(String, String)]): String = {
     params map { case (k, v) => s"$k=${UrlEscape(v)}" } mkString "&"
   }
-  def getRedirectURI(localWebserver: Boolean) = if (localWebserver) "http://localhost:9631" else "urn:ietf:wg:oauth:2.0:oob"
+  def getRedirectURI(localWebserver: Boolean): String = if (localWebserver) "http://localhost:9631" else "urn:ietf:wg:oauth:2.0:oob"
   // generate URL that should be opened in browser, optional for use with localWebserver
-  def GeneratePermissionUrl(client_id: String, localWebserver: Boolean) = {
+  def GeneratePermissionUrl(client_id: String, localWebserver: Boolean): String = {
     val params = Seq(
       ("client_id", client_id),
       ("redirect_uri", getRedirectURI(localWebserver)),
@@ -343,7 +376,7 @@ object OAuth2google {
     s"${AccountsUrl("o/oauth2/auth")}?${FormatUrlParams(params)}"
   }
 
-  def GenURL(base: String, params: Seq[(String, String)]) = {
+  def GenURL(base: String, params: Seq[(String, String)]): String = {
     s"$base?${FormatUrlParams(params)}"
   }
 
@@ -365,7 +398,7 @@ object OAuth2google {
   }
 
   // option II: user had to enter code manually (localWebserver=false above)
-  def AuthorizeTokens(client_id: String, client_secret: String, authorization_code: String, localWebserver: Boolean) = {
+  def AuthorizeTokens(client_id: String, client_secret: String, authorization_code: String, localWebserver: Boolean): (String, String) = {
     val params = Seq(
       ("client_id", client_id),
       ("client_secret", client_secret),
@@ -379,7 +412,7 @@ object OAuth2google {
   }
 
   // call this all the time after initial auth!
-  def RefreshTokens(client_id: String, client_secret: String, refresh_token: String) = {
+  def RefreshTokens(client_id: String, client_secret: String, refresh_token: String): String = {
     val params = Seq(
       ("client_id", client_id),
       ("client_secret", client_secret),
