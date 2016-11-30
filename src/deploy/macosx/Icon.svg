@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
+
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://web.resource.org/cc/"
+   xmlns:cc="http://creativecommons.org/ns#"
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
@@ -13,15 +14,15 @@
    height="128"
    id="svg2"
    sodipodi:version="0.32"
-   inkscape:version="0.45"
+   inkscape:version="0.91+devel+osxmenu r12922"
    version="1.0"
-   sodipodi:docbase="/Users/wolle/Desktop"
    sodipodi:docname="Icon.svg"
    inkscape:output_extension="org.inkscape.output.svg.inkscape"
-   inkscape:export-filename="/Users/wolle/Desktop/Icon-16.png"
-   inkscape:export-xdpi="45"
-   inkscape:export-ydpi="45"
-   sodipodi:modified="TRUE">
+   inkscape:export-filename="/Users/wolle/Desktop/test.png"
+   inkscape:export-xdpi="384"
+   inkscape:export-ydpi="384"
+   sodipodi:modified="TRUE"
+   viewBox="0 0 128 128">
   <defs
      id="defs4">
     <linearGradient
@@ -45,6 +46,16 @@
        fy="64"
        r="64"
        gradientUnits="userSpaceOnUse" />
+    <radialGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient4100"
+       id="radialGradient4180"
+       gradientUnits="userSpaceOnUse"
+       cx="64"
+       cy="64"
+       fx="64"
+       fy="64"
+       r="64" />
   </defs>
   <sodipodi:namedview
      id="base"
@@ -53,17 +64,19 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="3.959798"
-     inkscape:cx="56.041732"
-     inkscape:cy="65.013332"
+     inkscape:zoom="4.3299648"
+     inkscape:cx="72.207844"
+     inkscape:cy="35.470324"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      width="128px"
      height="128px"
-     inkscape:window-width="749"
-     inkscape:window-height="581"
-     inkscape:window-x="142"
-     inkscape:window-y="185" />
+     inkscape:window-width="1369"
+     inkscape:window-height="1005"
+     inkscape:window-x="311"
+     inkscape:window-y="23"
+     showgrid="false"
+     inkscape:window-maximized="0" />
   <metadata
      id="metadata7">
     <rdf:RDF>
@@ -80,22 +93,44 @@
      inkscape:groupmode="layer"
      id="layer1">
     <rect
-       style="fill:url(#radialGradient4106);fill-opacity:1.0;stroke-width:1.89999998;stroke-miterlimit:4;stroke-dasharray:none"
+       style="fill:url(#radialGradient4180);fill-opacity:1;stroke-width:1.89999998;stroke-miterlimit:4;stroke-dasharray:none"
        id="rect3339"
        width="128"
        height="128"
        x="0"
        y="0" />
     <text
+       sodipodi:linespacing="125%"
+       id="text4153"
+       y="73.451767"
+       x="-2.272841"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:150px;line-height:125%;font-family:Rockwell;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#4285f4;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;"
+       xml:space="preserve"><tspan
+         y="73.451767"
+         x="-2.272841"
+         id="tspan4155"
+         sodipodi:role="line">g</tspan></text>
+    <text
        xml:space="preserve"
-       style="font-size:150px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#a686be;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Rockwell"
-       x="10.606603"
-       y="109.81726"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:150px;line-height:125%;font-family:Rockwell;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ea4335;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="26.382996"
+       y="94.727188"
        id="text2366"
        sodipodi:linespacing="125%"><tspan
          sodipodi:role="line"
          id="tspan2368"
-         x="10.606603"
-         y="109.81726">rt</tspan></text>
+         x="26.382996"
+         y="94.727188">a</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:150px;line-height:125%;font-family:Rockwell;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#fbbc03;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="66.45417"
+       y="124.46447"
+       id="text4157"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan4159"
+         x="66.45417"
+         y="124.46447">r</tspan></text>
   </g>
 </svg>

@@ -31,11 +31,11 @@ JFX.verbose := true
 JFX.mainClass := Some("sgar.Sgar")
 JFX.devKit := JFX.jdk(System.getenv("JAVA_HOME"))
 JFX.pkgResourcesDir := baseDirectory.value + "/src/deploy"
-JFX.artifactBaseNameValue := "sgar"
+JFX.artifactBaseNameValue := "GmailAttachmentRemover"
 
 /////////////// mac app bundle via sbt-appbundle
 Seq(appbundle.settings: _*)
-appbundle.name := "Sgar"
+appbundle.name := "GmailAttachmentRemover"
 appbundle.javaVersion := "1.8*"
 appbundle.icon := Some(file("src/deploy/macosx/sgar.icns"))
 appbundle.mainClass := JFX.mainClass.value
@@ -60,9 +60,11 @@ tzipmac := {
   println("making app bundle...")
   appbundle.appbundle.value
   println("zipping mac app bundle...")
-  val s = target.value + "/" + appbundle.name.value + "-mac.zip"
-  IO.zip(Path.allSubpaths(new File(target.value + "/" + appbundle.name.value + ".app")), new File(s))
-  println("==> created mac app zip: " + s)
+  val zf = new File(target.value + "/" + appbundle.name.value + "-mac.zip")
+  val bd = new File(target.value + "/" + appbundle.name.value + ".app")
+  def entries(f: File):List[File] = f :: (if (f.isDirectory) IO.listFiles(f).toList.flatMap(entries) else Nil)
+  IO.zip(entries(bd).map(d => (d, d.getAbsolutePath.substring(bd.getParent.length))), zf)
+  println("==> created mac app zip: " + zf)
 }
 
 /////////////// task to do all at once

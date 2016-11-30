@@ -19,6 +19,7 @@
 package sgar
 
 import sgar.GmailStuff.{Bodypart, ToDelete}
+import buildinfo.BuildInfo
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -46,6 +47,7 @@ object Sgar extends JFXApp {
   val props = new java.util.Properties()
 
   val home = "https://bitbucket.org/wolfgang/gmail-attachment-remover"
+  val versionInfo = s"SGAR version ${BuildInfo.version}, buildtime ${BuildInfo.buildTime}"
   val space = 4.0
   var currentAccount: String = _
 
@@ -166,14 +168,6 @@ object Sgar extends JFXApp {
     tooltip = new Tooltip { text = "... to prevent attachments from being removed"}
     onAction = (_: ActionEvent) => {
       tiroot.getChildren.removeAll(ttv.getSelectionModel.getSelectedItems)
-//      for (cells <- ttv.getSelectionModel.getSelectedItems) {
-//        println(s"remove cell: " + cells)
-//        cells.getTreeItem.getParent.children -= cells.getTreeItem
-//      }
-      //      for (cells <- ttv.getSelectionModel.getSelectedCells) {
-//        println(s"remove cell: " + cells)
-//        cells.getTreeItem.getParent.children -= cells.getTreeItem
-//      }
     }
   }
 
@@ -201,6 +195,7 @@ object Sgar extends JFXApp {
   }
 
 
+  println(versionInfo)
   loadSettings()
   println("Logging to file " + logfile.getPath)
 
@@ -277,6 +272,7 @@ object Sgar extends JFXApp {
   val btAbout = new Button("About") {
     tooltip = new Tooltip { text = s"Open website $home"}
     onAction = (_: ActionEvent) => {
+      println(versionInfo)
       println(s"Open $home ...")
       if (Desktop.isDesktopSupported) {
         val desktop = Desktop.getDesktop
@@ -450,7 +446,7 @@ object Sgar extends JFXApp {
       new HBox(space) { alignment = Pos.CenterLeft ; children ++= List(
         new Label("Minimum Attachment size (bytes): "),
         tfminbytes,
-        new Label("     Limit no. messages:"),
+        new Label("     Limit # messages: "),
         tflimit
       ) },
       new HBox(space) {
