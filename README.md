@@ -7,7 +7,6 @@ This is an app that connects to your Gmail account via imap and removes selected
 
 
 ## Tutorial
-To run it, you need a recent version of java 1.8 from https://jdk8.java.net/download.html
 
 Do this in Gmail:
 
@@ -16,7 +15,7 @@ Do this in Gmail:
 
 On your computer:
 
-* Get the (Java JRE)[http://www.oracle.com/technetwork/java/javase/downloads/index.html] >= 8u101. Don't forget to untick the [crapware](https://www.google.com/search?q=java+crapware) installer, and/or (disable it permanently)[https://www.java.com/en/download/faq/disable_offers.xml]!
+* Get the [Java JRE](http://www.oracle.com/technetwork/java/javase/downloads/index.html) >= 8u101. Don't forget to untick the [crapware](https://www.google.com/search?q=java+crapware) installer, and/or [disable it permanently](https://www.java.com/en/download/faq/disable_offers.xml)!
 * [Download a zip](https://bitbucket.org/wolfgang/gmail-attachment-remover/downloads) for Mac or (Windows, Linux), extract it somewhere and double-click the app (Mac) or
   jar file (Windows, Linux).
 * Settings:
@@ -81,4 +80,3 @@ Please use the bitbucket-provided tools for bug reports and contributed code. An
 * The message gets a new ID, which doesn't matter.
 * This program contains a nice example for doing OAuth2 authentification with local webserver redirect callback, in a few lines code (OAuth2google)!
 * License: GPL
-
