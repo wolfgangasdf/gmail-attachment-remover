@@ -27,7 +27,7 @@ On your computer:
         `size:1MB has:attachment older_than:12m -in:inbox` is a good choice: mails that are small, in the inbox, within the last 12 month, or without attachment, are skipped.
     * `minimum Attachment size`: Select a minimum size above which attachments will be considered. Important for multiple attachments in mails!
 * Click `Authenticate account` to perform OAuth2 authentication. A web browser window should open, make sure that you are logged in with the correct gmail account!
-* Click `Get emails`. The table will contain emails matching the criteria.
+* Click `Find emails`. The table will contain emails matching the criteria.
 * Check the table and remove rows from the table if they should not be processed.
 * Click `Remove attachments` to start the removal procedure.
     * This might take very long because the full messages are downloaded for backup, and Gmail limits bandwidth (~500 kB/s)!
