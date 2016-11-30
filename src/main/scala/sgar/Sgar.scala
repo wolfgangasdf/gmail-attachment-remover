@@ -16,11 +16,6 @@
     along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*
- * This file contains the GUI made with javafx/scalafx
- *
- */
-
 package sgar
 
 import sgar.GmailStuff.{Bodypart, ToDelete}
@@ -28,7 +23,6 @@ import sgar.GmailStuff.{Bodypart, ToDelete}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.language.reflectiveCalls
 import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.beans.property.ReadOnlyStringWrapper
@@ -44,7 +38,7 @@ import HBox._
 import Button._
 import TreeTableColumn._
 import java.awt.Desktop
-import java.io._
+import java.io.{File, FileInputStream, FileOutputStream, PrintStream}
 import java.net.URI
 
 object Sgar extends JFXApp {
@@ -67,18 +61,10 @@ object Sgar extends JFXApp {
 
   class MyConsole(errchan: Boolean) extends java.io.OutputStream {
     override def write(b: Int): Unit = {
-      runUI { logView.appendText(b.toChar.toString) }
+      Helpers.runUI { logView.appendText(b.toChar.toString) }
       if (logps != null) logps.write(b)
       (if (errchan) oldErr else oldOut).print(b.toChar.toString)
     }
-  }
-
-  def runUI( f: => Unit ) {
-    if (!scalafx.application.Platform.isFxApplicationThread) {
-      scalafx.application.Platform.runLater( new Runnable() {
-        def run() { f }
-      })
-    } else { f }
   }
 
   val logView = new TextArea {
@@ -231,7 +217,7 @@ object Sgar extends JFXApp {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
-    tooltip = new Tooltip { text = "Only consider emails having this label" }
+    tooltip = new Tooltip { text = "Only consider emails having this label; consider all if empty" }
   }
   val cbgmailsearch = new ComboBox[String] {
     hgrow = Priority.Always
@@ -252,7 +238,7 @@ object Sgar extends JFXApp {
   }
 
   def setButtons(flist: Boolean = false, getemails: Boolean = false, rmattach: Boolean = false) {
-    runUI {
+    Helpers.runUI {
       btFolderList.disable = !flist
       btGetEmails.disable = !getemails
       btRemoveAttachments.disable = !rmattach
@@ -277,8 +263,13 @@ object Sgar extends JFXApp {
       setButtons()
       setupGmail()
       Future {
-        GmailStuff.getAllFolders
-        setButtons(flist = true, getemails = true)
+        try {
+          GmailStuff.getAllFolders
+        } catch {
+          case e: Exception => showGmailErrorCleanup(e)
+        } finally {
+          setButtons(flist = true, getemails = true)
+        }
       }
     }
   }
@@ -296,6 +287,14 @@ object Sgar extends JFXApp {
     }
   }
 
+  def showGmailErrorCleanup(e: Throwable): Unit = {
+    println("Exception " + e.getMessage)
+    e.printStackTrace()
+    Helpers.runUI {
+      new Alert(AlertType.Error, "Error communicating with gmail.\nDid you authenticate?\nError: " + e.getMessage).showAndWait()
+    }
+  }
+
   val btGetEmails = new Button("Find emails") {
     tooltip = new Tooltip { text = "Find emails based on selected criteria"}
     onAction = (_: ActionEvent) => {
@@ -303,17 +302,23 @@ object Sgar extends JFXApp {
       setupGmail()
       tiroot.children.clear()
       Future {
-        val dellist = GmailStuff.getToDelete
-        runUI {
-          for (todel <- dellist) {
-            val ti = new TreeItem[TreeThing](new TreeThing(todel, null))
-            for (bp <- todel.bodyparts) {
-              ti.children += new TreeItem[TreeThing](new TreeThing(todel, bp))
+        var dellist = new ListBuffer[ToDelete]()
+        try {
+          dellist = GmailStuff.getToDelete
+          Helpers.runUI {
+            for (todel <- dellist) {
+              val ti = new TreeItem[TreeThing](new TreeThing(todel, null))
+              for (bp <- todel.bodyparts) {
+                ti.children += new TreeItem[TreeThing](new TreeThing(todel, bp))
+              }
+              tiroot.children += ti
             }
-            tiroot.children += ti
           }
+        } catch {
+          case e: Exception => showGmailErrorCleanup(e)
+        } finally {
+          setButtons(flist = true, getemails = true, rmattach = dellist.nonEmpty)
         }
-        setButtons(flist = true, getemails = true, rmattach = dellist.nonEmpty)
       }
     }
   }
@@ -338,15 +343,20 @@ object Sgar extends JFXApp {
       }
       for (todel <- dellist) println(todel.toString)
       Future {
-        GmailStuff.doDelete(dellist)
-        runUI { tiroot.children.clear() }
-        setButtons(flist = true, getemails = true)
+        try {
+          GmailStuff.doDelete(dellist)
+          Helpers.runUI { tiroot.children.clear() }
+        } catch {
+          case e: Exception => showGmailErrorCleanup(e)
+        } finally {
+          setButtons(flist = true, getemails = true)
+        }
       }
     }
   }
 
   val btAuthGoogle = new Button("Authenticate account") {
-    tooltip = new Tooltip { text = "This needs to be run only once, or if there are authentification problems!"}
+    tooltip = new Tooltip { text = "This needs to be run only once, or if there are authentication problems!"}
     onAction = (_: ActionEvent) => {
       try {
         var doit = 1 // 1-webserver, 2-manual, -1-done1 -2-done2
@@ -372,7 +382,7 @@ object Sgar extends JFXApp {
                 println("Received an auth token...")
                 -1
               } else {
-                println("Automatic Authentification failed, trying again manually...")
+                println("Automatic authentication failed, trying again manually...")
                 2
               }
             case 2 =>
@@ -390,9 +400,9 @@ object Sgar extends JFXApp {
         println("Obtaining refresh token...")
         val (_, refreshtoken) = OAuth2google.AuthorizeTokens(GmailStuff.clientid, GmailStuff.clientsecret, authcode, doit == -1)
         props.put(cbaccount.getValue + "-token", refreshtoken)
-        println("Authentification succeeded!")
+        println("Authentication succeeded!")
       } catch {
-        case e: Exception => e.printStackTrace()
+        case e: Exception => showGmailErrorCleanup(e)
       }
     }
   }
@@ -479,12 +489,9 @@ object Sgar extends JFXApp {
     System.exit(0)
   }
 
-  // init things
-
-    setButtons(flist = true, getemails = true)
-
-    updateAccountsGuiFromProperties()
-
+  // init
+  setButtons(flist = true, getemails = true)
+  updateAccountsGuiFromProperties()
 
 }
 
@@ -499,5 +506,12 @@ object Helpers {
     if (Helpers.isLinux || Helpers.isMac) if (new File("/tmp").isDirectory)
       dir = "/tmp"
     new File(dir + "/" + prefix + "-" + tag + suffix)
+  }
+  def runUI( f: => Unit ) {
+    if (!scalafx.application.Platform.isFxApplicationThread) {
+      scalafx.application.Platform.runLater( new Runnable() {
+        def run() { f }
+      })
+    } else { f }
   }
 }
