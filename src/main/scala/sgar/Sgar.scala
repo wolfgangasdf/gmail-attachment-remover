@@ -42,6 +42,10 @@ import java.awt.Desktop
 import java.io.{File, FileInputStream, FileOutputStream, PrintStream}
 import java.net.URI
 
+import sgar.Helpers.MyWorker
+
+import scalafx.concurrent.{Service, WorkerStateEvent}
+
 object Sgar extends JFXApp {
 
   val props = new java.util.Properties()
@@ -295,7 +299,7 @@ object Sgar extends JFXApp {
     println("Exception " + e.getMessage)
     e.printStackTrace()
     Helpers.runUI {
-      new Alert(AlertType.Error, "Error communicating with gmail.\nDid you authenticate?\nError: " + e.getMessage).showAndWait()
+      new Alert(AlertType.Error, "Error communicating with gmail.\nError: " + e.getMessage).showAndWait()
     }
   }
 
@@ -305,25 +309,28 @@ object Sgar extends JFXApp {
       setButtons()
       setupGmail()
       tiroot.children.clear()
-      Future {
-        var dellist = new ListBuffer[ToDelete]()
-        try {
-          dellist = GmailStuff.getToDelete
-          Helpers.runUI {
-            for (todel <- dellist) {
-              val ti = new TreeItem[TreeThing](new TreeThing(todel, null))
-              for (bp <- todel.bodyparts) {
-                ti.children += new TreeItem[TreeThing](new TreeThing(todel, bp))
-              }
-              tiroot.children += ti
+      val task = GmailStuff.getToDelete
+      task.onSucceeded = () => {
+        val dellist = task.get()
+        Helpers.runUI {
+          for (todel <- dellist) {
+            val ti = new TreeItem[TreeThing](new TreeThing(todel, null))
+            for (bp <- todel.bodyparts) {
+              ti.children += new TreeItem[TreeThing](new TreeThing(todel, bp))
             }
+            tiroot.children += ti
           }
-        } catch {
-          case e: Exception => showGmailErrorCleanup(e)
-        } finally {
-          setButtons(flist = true, getemails = true, rmattach = dellist.nonEmpty)
         }
+        setButtons(flist = true, getemails = true, rmattach = true)
       }
+      task.onCancelled = () => {
+        setButtons(flist = true, getemails = true)
+      }
+      task.onFailed = () => {
+        showGmailErrorCleanup(task.getException)
+        setButtons(flist = true, getemails = true)
+      }
+      new MyWorker[ListBuffer[ToDelete]]("Find emails...", task).runInBackground()
     }
   }
 
@@ -345,17 +352,21 @@ object Sgar extends JFXApp {
           dellist += td
         }
       }
-      for (todel <- dellist) println(todel.toString)
-      Future {
-        try {
-          GmailStuff.doDelete(dellist)
-          Helpers.runUI { tiroot.children.clear() }
-        } catch {
-          case e: Exception => showGmailErrorCleanup(e)
-        } finally {
-          setButtons(flist = true, getemails = true)
-        }
+      val task = GmailStuff.doDelete(dellist)
+      task.onSucceeded = () => {
+        Helpers.runUI { tiroot.children.clear() }
+        setButtons(flist = true, getemails = true)
       }
+      task.onCancelled = () => {
+        Helpers.runUI { tiroot.children.clear() }
+        setButtons(flist = true, getemails = true)
+      }
+      task.onFailed = () => {
+        Helpers.runUI { tiroot.children.clear() }
+        showGmailErrorCleanup(task.getException)
+        setButtons(flist = true, getemails = true)
+      }
+      new MyWorker[Unit]("Remove attachments...", task).runInBackground()
     }
   }
 
@@ -477,4 +488,37 @@ object Helpers {
       })
     } else { f }
   }
+
+  // https://github.com/scalafx/ProScalaFX/blob/master/src/proscalafx/ch06/ServiceExample.scala
+  class MyWorker[T](atitle: String, atask: javafx.concurrent.Task[T]) {
+    object worker extends Service[T](new javafx.concurrent.Service[T]() {
+      override def createTask(): javafx.concurrent.Task[T] = atask
+    })
+    val lab = new Label("")
+    val progress = new ProgressBar { minWidth = 250 }
+    val al = new Dialog[Unit] {
+      initOwner(Sgar.stage)
+      title = atitle
+      dialogPane.value.content = new VBox { children ++= Seq(lab, progress) }
+      dialogPane.value.getButtonTypes += ButtonType.Cancel
+    }
+    al.onCloseRequest = () => {
+      atask.cancel()
+    }
+    def runInBackground(): Unit = {
+      al.show()
+      lab.text <== worker.message
+      progress.progress <== worker.progress
+      worker.onSucceeded = (_: WorkerStateEvent) => {
+        al.close()
+      }
+      worker.onFailed = (_: WorkerStateEvent) => {
+        println("onfailed: " + atask.getException.getMessage)
+        atask.getException.printStackTrace()
+        al.close()
+      }
+      worker.start()
+    }
+  }
+
 }

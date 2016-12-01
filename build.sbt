@@ -8,11 +8,9 @@ scalaVersion := "2.11.8"
 scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8")
 
 libraryDependencies ++= Seq(
-  "org.scalafx" %% "scalafx" % "8.0.92-R10",
-  "org.scalaj" %% "scalaj-http" % "2.3.0",
-  "com.sun.mail" % "javax.mail" % "1.5.2",
-  "com.sun.mail" % "gimap" % "1.5.6",
-  "com.googlecode.json-simple" % "json-simple" % "1.1.1"
+  "org.scalafx" %% "scalafx" % "8.0.102-R11",
+  "com.sun.mail" % "javax.mail" % "1.5.6",
+  "com.sun.mail" % "gimap" % "1.5.6"
 )
 
 lazy val root = (project in file(".")).

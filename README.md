@@ -20,13 +20,13 @@ On your computer:
   jar file (Windows, Linux).
 * Settings:
     * Gmail account (email): You can deal with multiple accounts with different settings.
+    * Password: I suggest to use "application specific passwords" just click the button.
     * Select a folder for mail backups.
     * `limit`: select a maximum number of emails processed, e.g., 100. After this you can check the emails if everything is fine, further the process might take very long and google might interrupt the connection from time to time.
     * `label`: Gmail message label to be searched for, e.g. `removeattachments`. It is removed after attachment removal (doesn't work in conversation view, see above). If empty, this is ignored.
     * `gmail search`: use a "RAW Gmail search term" to pre-filter emails. See the examples in the drop-down list and [here](https://support.google.com/mail/answer/7190?hl=en) for information.
         `size:1MB has:attachment older_than:12m -in:inbox` is a good choice: mails that are small, in the inbox, within the last 12 month, or without attachment, are skipped.
     * `minimum Attachment size`: Select a minimum size above which attachments will be considered. Important for multiple attachments in mails!
-* Click `Authenticate account` to perform OAuth2 authentication. A web browser window should open, make sure that you are logged in with the correct gmail account!
 * Click `Find emails`. The table will contain emails matching the criteria.
 * Check the table and remove rows from the table if they should not be processed.
 * Click `Remove attachments` to start the removal procedure.
@@ -35,7 +35,8 @@ On your computer:
 
 ## Is it safe to use?
 
-* The Gmail trash folder is emptied in the process!
+* The Gmail trash folder is emptied in the process.
+* The password is saved in clear text in the settings file.
 * It works very well here since >5 years, but Google might change something at any time which could break it.
 * If the software or connection is interrupted:
     * In the worst case you have lost the labels of one email, more likely is to have an additional email, but in most cases nothing happens, just start over.
@@ -69,8 +70,6 @@ Please use the bitbucket-provided tools for bug reports and contributed code. An
 * [scalafx](http://www.scalafx.org) as wrapper for javafx
 * [sbt-javafx](https://github.com/kavedaa/sbt-javafx) for packaging
 * [javamail](http://www.oracle.com/technetwork/java/javamail/index.html) for everything about IMAP and Gmail
-* [scalaj-http](https://github.com/scalaj/scalaj-http) for oauth communication
-* [json-simple](https://code.google.com/p/json-simple/) for oauth parsing
 
 ## Notes
 
@@ -78,5 +77,4 @@ Please use the bitbucket-provided tools for bug reports and contributed code. An
 * IMAP message flags are preserved.
 * Gmail message labels are preserved. If the `label` tag (see above) exists, it is removed after attachment removal (doesn't work for conversation view).
 * The message gets a new ID, which doesn't matter.
-* This program contains a nice example for doing OAuth2 authentification with local webserver redirect callback, in a few lines code (OAuth2google)!
 * License: GPL
