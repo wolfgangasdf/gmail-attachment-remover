@@ -118,7 +118,7 @@ object GmailStuff {
     println("Find requested emails with attachments...")
     reconnect()
     val inbox = store.getFolder("[Gmail]/All Mail")
-    inbox.open(Folder.READ_WRITE)
+    inbox.open(Folder.READ_ONLY)
     val msgs = inbox.search(new GmailRawSearchTerm(gmailsearch + (if (label.isEmpty) "" else " label:" + label)))
     println(s" ${msgs.length} emails found matching the criteria, querying the first limit=$limit emails only!")
     var count = 0
@@ -141,10 +141,10 @@ object GmailStuff {
           case _ => println("  unknown mp.class = " + mp.getClass)
         }
         if (dodelete) {
-          dellist += new ToDelete(gm.getMsgId, bps, gm.getFrom.head.toString, gm.getSubject, gm.getSentDate.toString)
+          dellist += new ToDelete(gm.getMsgId, bps, gm.getFrom.headOption.map(_.toString).getOrElse(""), gm.getSubject, gm.getSentDate.toString)
           count += 1
         }
-        if (count > limit) break()
+        if (count >= limit) break()
       }
     }
     inbox.close(true)
