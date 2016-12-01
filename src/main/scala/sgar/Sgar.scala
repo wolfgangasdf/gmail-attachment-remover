@@ -123,6 +123,7 @@ object Sgar extends JFXApp {
       props.put(currentAccount + "-limit", tflimit.text.value)
       props.put(currentAccount + "-label", tflabel.text.value)
       props.put(currentAccount + "-gmailsearch", cbgmailsearch.getValue)
+      props.put(currentAccount + "-password", tfpassword.getText)
     }
   }
 
@@ -134,6 +135,7 @@ object Sgar extends JFXApp {
       tflimit.text = props.getProperty(currentAccount + "-limit", "10")
       tflabel.text = props.getProperty(currentAccount + "-label", "removeattachments")
       cbgmailsearch.setValue(props.getProperty(currentAccount + "-gmailsearch", "???")) // don't use value = !
+      tfpassword.text = props.getProperty(currentAccount + "-password", "")
     }
   }
 
@@ -194,6 +196,12 @@ object Sgar extends JFXApp {
     }
   }
 
+  val tfpassword = new PasswordField {
+    prefWidth = 140
+    text = ""
+    tooltip = new Tooltip { text = "Password is saved in clear text in settings file." }
+  }
+
 
   println(versionInfo)
   loadSettings()
@@ -245,11 +253,11 @@ object Sgar extends JFXApp {
     updatePropertiesForAccount()
     GmailStuff.backupdir = new File(tfbackupdir.text.value)
     GmailStuff.username = cbaccount.getValue
+    GmailStuff.password = tfpassword.getText
     GmailStuff.label = tflabel.text.value
     GmailStuff.gmailsearch = cbgmailsearch.getValue
     GmailStuff.minbytes = tfminbytes.text.value.toInt
     GmailStuff.limit = tflimit.text.value.toInt
-    GmailStuff.refreshtoken = props.getProperty(cbaccount.getValue + "-token")
   }
 
   val btFolderList = new Button("Get gmail folder list") {
@@ -351,58 +359,6 @@ object Sgar extends JFXApp {
     }
   }
 
-  val btAuthGoogle = new Button("Authenticate account") {
-    tooltip = new Tooltip { text = "This needs to be run only once, or if there are authentication problems!"}
-    onAction = (_: ActionEvent) => {
-      try {
-        var doit = 1 // 1-webserver, 2-manual, -1-done1 -2-done2
-        var authcode = ""
-        do {
-          val weblink = OAuth2google.GeneratePermissionUrl(GmailStuff.clientid, doit == 1)
-          if (Desktop.isDesktopSupported) {
-            val desktop = Desktop.getDesktop
-            if (desktop.isSupported(Desktop.Action.BROWSE)) {
-              new Alert(AlertType.Information, "A browser window opens. Follow the instructions" + (if (doit == 2) "and copy to code to clipbaord!" else "!")).showAndWait()
-              desktop.browse(new URI(weblink))
-            } else {
-              new Alert(AlertType.Information, "Please open the URL shown in the log in a browser. Follow the instructions" + (if (doit == 2) "and copy to code to clipbaord!" else "!")).showAndWait()
-              println("please open this URL in your browser:\n" + weblink)
-            }
-          }
-
-          doit = doit match {
-            case 1 =>
-              val res = OAuth2google.catchResponse()
-              if (res != null) {
-                authcode = res
-                println("Received an auth token...")
-                -1
-              } else {
-                println("Automatic authentication failed, trying again manually...")
-                2
-              }
-            case 2 =>
-              val dialog = new TextInputDialog()
-              dialog.setTitle("Google OAuth2")
-              dialog.setHeaderText("Google OAuth2 response")
-              dialog.setContentText("Enter Google OAuth2 response:")
-              val res = dialog.showAndWait()
-              if (res.nonEmpty) {
-                authcode = res.get
-              }
-              -2
-          }
-        } while (doit > 0)
-        println("Obtaining refresh token...")
-        val (_, refreshtoken) = OAuth2google.AuthorizeTokens(GmailStuff.clientid, GmailStuff.clientsecret, authcode, doit == -1)
-        props.put(cbaccount.getValue + "-token", refreshtoken)
-        println("Authentication succeeded!")
-      } catch {
-        case e: Exception => showGmailErrorCleanup(e)
-      }
-    }
-  }
-
   val settingsPane = new VBox(space) {
     children ++= List(
       new HBox(space) {
@@ -410,7 +366,18 @@ object Sgar extends JFXApp {
         children ++= List(
           new Label("Gmail Account: "),
           cbaccount,
-          btAuthGoogle,
+          tfpassword,
+          new Button("Get app password") {
+            tooltip = new Tooltip { text = "This opens google settings. Select \"Mail\", \"gmail-attachment-remover\", and copy the password here." }
+            onAction = (_: ActionEvent) => {
+              if (Desktop.isDesktopSupported) {
+                val desktop = Desktop.getDesktop
+                if (desktop.isSupported(Desktop.Action.BROWSE)) {
+                  desktop.browse(new URI("https://security.google.com/settings/security/apppasswords"))
+                }
+              }
+            }
+          },
           new Button("Add") {
             tooltip = new Tooltip { text = "Add a new Gmail account"}
             onAction = (_: ActionEvent) => {

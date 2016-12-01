@@ -17,15 +17,10 @@
 
 package sgar
 
-import org.json.simple.{JSONObject, JSONValue}
-
-import scalaj.http.Http
 import scala.collection.mutable.ListBuffer
 import scala.util.control.Breaks._
-import scala.io.BufferedSource
-import java.io.{FileInputStream, FileOutputStream, PrintWriter}
+import java.io.{FileInputStream, FileOutputStream}
 import java.util.Properties
-import java.net.{ServerSocket, URLDecoder, URLEncoder}
 import javax.mail._
 import javax.mail.internet._
 
@@ -39,18 +34,14 @@ import com.sun.mail.imap.protocol.IMAPProtocol
 object GmailStuff {
   var backupdir: java.io.File = _
   var username = ""
+  var password = ""
   var gmailsearch = ""
   var minbytes = 0
   var limit = 0
   var label = ""
-  var refreshtoken = ""
 
   var store: Store = _
   var session: Session = _
-
-  // OAuth2
-  val clientid = "217209351804-pf92dc077qrvtotiro7b9lcl6pjrhfhq.apps.googleusercontent.com"
-  val clientsecret = "WqZuf6h_xD0al4vH5jolJyds"
 
   def heads(s: String, len: Int): String = if (s != null) s.substring(0, math.min(len, s.length)) else ""
 
@@ -79,20 +70,14 @@ object GmailStuff {
   private def reconnect() {
     println("(re)connecting...")
     if (store != null) if (store.isConnected) store.close()
-    println(" getting oauth2 access token...")
-    if (refreshtoken == null) throw new Exception("refresh token error, please re-authenticate!")
-    val oauth2_access_token = OAuth2google.RefreshTokens(clientid, clientsecret, refreshtoken)
     println(" connecting to gmail...")
 
     val props = new Properties()
     props.put("mail.store.protocol", "gimaps")
-    props.put("mail.gimaps.sasl.enable", "true")
-    props.put("mail.gimaps.sasl.mechanisms", "XOAUTH2")
-    props.put("mail.imaps.sasl.mechanisms.oauth2.oauthToken", oauth2_access_token)
     session = Session.getInstance(props)
 
     store = session.getStore("gimaps")
-    store.connect("imap.gmail.com", username, oauth2_access_token)
+    store.connect("imap.gmail.com", username, password)
     println("connected: " + store.isConnected)
   }
 
@@ -272,78 +257,4 @@ object GmailStuff {
   def cleanup(): Unit = {
     if (store != null) if (store.isConnected) store.close()
   }
-}
-
-object OAuth2google {
-
-  val GOOGLE_ACCOUNTS_BASE_URL = "https://accounts.google.com"
-
-  def AccountsUrl(command: String) = s"$GOOGLE_ACCOUNTS_BASE_URL/$command"
-
-  def UrlEscape(text: String): String = URLEncoder.encode(text, "UTF-8")
-
-  def UrlUnescape(text: String): String = URLDecoder.decode(text, "UTF-8")
-
-  def FormatUrlParams(params: Seq[(String, String)]): String = {
-    params map { case (k, v) => s"$k=${UrlEscape(v)}" } mkString "&"
-  }
-  def getRedirectURI(localWebserver: Boolean): String = if (localWebserver) "http://localhost:9631" else "urn:ietf:wg:oauth:2.0:oob"
-  // generate URL that should be opened in browser, optional for use with localWebserver
-  def GeneratePermissionUrl(client_id: String, localWebserver: Boolean): String = {
-    val params = Seq(
-      ("client_id", client_id),
-      ("redirect_uri", getRedirectURI(localWebserver)),
-      ("scope", "https://mail.google.com/"),
-      ("response_type", "code"))
-    s"${AccountsUrl("o/oauth2/auth")}?${FormatUrlParams(params)}"
-  }
-
-  def GenURL(base: String, params: Seq[(String, String)]): String = {
-    s"$base?${FormatUrlParams(params)}"
-  }
-
-  // option I: use built-in webserver to catch response (localWebserver=true above)
-  def catchResponse(): String = {
-    println("Waiting for redirect from Google...")
-    val port = 9631
-    val listener = new ServerSocket(port)
-    val sock = listener.accept()
-    val rec = new BufferedSource(sock.getInputStream).getLines()
-    val s = rec.next()
-    new PrintWriter(sock.getOutputStream, true).println("Gmail attachment remover has received the reply. Please close this window!")
-    sock.close()
-    val re = """GET\ \/\?code=(.*)\ HTTP\/.*""".r
-    s match {
-      case re(code) => code
-      case _ => null
-    }
-  }
-
-  // option II: user had to enter code manually (localWebserver=false above)
-  def AuthorizeTokens(client_id: String, client_secret: String, authorization_code: String, localWebserver: Boolean): (String, String) = {
-    val params = Seq(
-      ("client_id", client_id),
-      ("client_secret", client_secret),
-      ("code", authorization_code),
-      ("redirect_uri", getRedirectURI(localWebserver)),
-      ("grant_type", "authorization_code"))
-    val response = Http(AccountsUrl("o/oauth2/token")).postForm(params).asString
-    if (!response.isSuccess) throw new Exception("error retrieving auth token response = " + response)
-    val r1 = JSONValue.parse(response.body).asInstanceOf[JSONObject]
-    (r1.get("access_token").toString, r1.get("refresh_token").toString)
-  }
-
-  // call this all the time after initial auth!
-  def RefreshTokens(client_id: String, client_secret: String, refresh_token: String): String = {
-    val params = Seq(
-      ("client_id", client_id),
-      ("client_secret", client_secret),
-      ("refresh_token", refresh_token),
-      ("grant_type", "refresh_token"))
-    val response = Http(AccountsUrl("o/oauth2/token")).postForm(params).asString
-    if (!response.isSuccess) throw new Exception("error retrieving refresh token response = " + response)
-    val r1 = JSONValue.parse(response.body).asInstanceOf[JSONObject]
-    r1.get("access_token").toString
-  }
-
 }
