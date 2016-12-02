@@ -1,6 +1,6 @@
-# Scala Gmail attachment remover (Sgar)
+# Gmail attachment remover
 
-This is an app that connects to your Gmail account via imap and removes selected large attachments, without screwing up the conversations/threads/labels.
+This is an app that connects to your Gmail account via imap and removes selected large attachments, without screwing up conversations/threads/labels.
 
 * Before removing an attachment, a local full backup of the raw email is saved. But you should save your important attachments manually before!
 * The removed attachment is replaced by a text-file attachment containing the original attachment filename and size.
@@ -20,7 +20,7 @@ On your computer:
   jar file (Windows, Linux).
 * Settings:
     * Gmail account (email): You can deal with multiple accounts with different settings.
-    * Password: I suggest to use "application specific passwords" just click the button.
+    * Password: I suggest to use "application specific passwords" just click the button and get a password for "Mail".
     * Select a folder for mail backups.
     * `limit`: select a maximum number of emails processed, e.g., 100. After this you can check the emails if everything is fine, further the process might take very long and google might interrupt the connection from time to time.
     * `label`: Gmail message label to be searched for, e.g. `removeattachments`. It is removed after attachment removal (doesn't work in conversation view, see above). If empty, this is ignored.
@@ -43,7 +43,6 @@ On your computer:
     * You always have a downloaded backup of the email.
 * Probably, you should always have a backup your Gmail account with, e.g., [gmvault](http://gmvault.org); however, mind that this is not incremental.
 * Of course I cannot take any responsibility for anything.
-* Privacy: the Gmail login OAuth2 refresh token is saved after authentification in the settings file (path is shown in log on startup). Combined with the app source code, it enables IMAP access to Gmail.
 
 
 ## How to develop, compile & package
@@ -60,7 +59,7 @@ Run the program from terminal and package it:
 * Package for all platforms: `sbt dist`. The resulting files are in `target/`
 
 
-## Suggestions, bug reports, pull requests, contact
+## Suggestions, bug reports, pull requests
 Please use the bitbucket-provided tools for bug reports and contributed code. Anything is welcome!
 
 
@@ -76,5 +75,5 @@ Please use the bitbucket-provided tools for bug reports and contributed code. An
 * Only attachments which have a "filename" are considered. This excludes effectively html/text message parts.
 * IMAP message flags are preserved.
 * Gmail message labels are preserved. If the `label` tag (see above) exists, it is removed after attachment removal (doesn't work for conversation view).
-* The message gets a new ID, which doesn't matter.
+* The processed mails get a new message-ID, which doesn't matter.
 * License: GPL

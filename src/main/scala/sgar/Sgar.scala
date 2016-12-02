@@ -178,6 +178,8 @@ object Sgar extends JFXApp {
   }
 
   val listPane = new VBox(space) {
+    vgrow = Priority.Always
+    maxHeight = Double.MaxValue
     fillWidth = true
     children ++= Seq(
       ttv,
