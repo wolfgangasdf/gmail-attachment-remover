@@ -30,10 +30,10 @@ import scalafx.beans.property.ReadOnlyStringWrapper
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
 import scalafx.geometry.{Insets, Pos}
-import scalafx.scene.Scene
+import scalafx.scene.{Group, Scene}
 import scalafx.scene.control._
 import scalafx.scene.layout._
-import scalafx.stage.DirectoryChooser
+import scalafx.stage._
 import scalafx.scene.control.Alert.AlertType
 import HBox._
 import Button._
@@ -45,6 +45,10 @@ import java.net.URI
 import sgar.Helpers.MyWorker
 
 import scalafx.concurrent.{Service, WorkerStateEvent}
+import scalafx.scene.shape.Rectangle
+import Rectangle._
+import scalafx.scene.paint.Color
+import scalafx.scene.text.Text
 
 object Sgar extends JFXApp {
 
@@ -64,6 +68,7 @@ object Sgar extends JFXApp {
 
   val logfile = Helpers.createTempFile("sgar",".txt")
   logps = new FileOutputStream(logfile)
+
 
   class MyConsole(errchan: Boolean) extends java.io.OutputStream {
     override def write(b: Int): Unit = {
@@ -297,6 +302,39 @@ object Sgar extends JFXApp {
     }
   }
 
+  // TODO automatic documentation: show all tooltip texts with arrow to field, then auto-distribute!
+  // would be nice but is not trivial. unfortunately tooltips don't do that automatically & don't have an arrow.
+  // simplest case: check particular x-position, then check for closest y-position without collision with boxes!
+  // (let arrows overlap) and/or search afterwards for best arrow connection (in 5px steps, 2D!)
+  val btHelp = new Button("Help") {
+    tooltip = new Tooltip { text = "Show all tooltips"}
+    onAction = (_: ActionEvent) => {
+      println("XXX: " + Sgar.stage.getScene.getWindow)
+      def transparentStage = new Stage() {
+        initStyle(StageStyle.Transparent)
+        initOwner(Sgar.stage)
+        x = Sgar.stage.getX
+        y = Sgar.stage.getY + Sgar.stage.getHeight - Sgar.stage.getScene.getHeight // add window title bar height!
+        val group = new Group {
+          children.add(new Rectangle { stroke = Color.Red; fill = null; x = 0; y = 0; width = Sgar.stage.getScene.getWidth; height = Sgar.stage.getScene.getHeight})
+          Seq(btGetEmails,btRemoveAttachments,btRemoveRows,btFolderList,btAbout, cbaccount, cbgmailsearch, tflabel).foreach(nn => {
+            val tt = nn.getTooltip
+            val xx = nn.localToScene(nn.getLayoutBounds)
+            children.add(new Text(xx.getMinX, xx.getMinY, tt.getText))
+            children.add(new Rectangle { x = xx.getMinX; y = xx.getMinY; width = xx.getWidth; height = xx.getHeight})
+            println(s"xx=$xx t=${tt.getText}")
+          })
+        }
+        val myScene = new Scene(group, Sgar.stage.getScene.getWidth, Sgar.stage.getScene.getHeight) {
+          fill = null
+        }
+        scene = myScene
+      }
+      transparentStage.show()
+
+    }
+  }
+
   def showGmailErrorCleanup(e: Throwable): Unit = {
     println("Exception " + e.getMessage)
     e.printStackTrace()
@@ -436,7 +474,7 @@ object Sgar extends JFXApp {
             stopApp()
           }
         }
-        children ++= List(btGetEmails, btRemoveAttachments, btFolderList, btAbout)
+        children ++= List(btGetEmails, btRemoveAttachments, btFolderList, btAbout, btHelp)
       }
     )
   }
@@ -451,6 +489,7 @@ object Sgar extends JFXApp {
     width = 1000
     height = 750
     scene = new Scene {
+      stylesheets = List(getClass.getResource("/main.css").toExternalForm)
       root = cont
     }
   }
