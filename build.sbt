@@ -35,7 +35,7 @@ JFX.artifactBaseNameValue := "GmailAttachmentRemover"
 Seq(appbundle.settings: _*)
 appbundle.name := "GmailAttachmentRemover"
 appbundle.javaVersion := "1.8*"
-appbundle.icon := Some(file("src/deploy/macosx/sgar.icns"))
+appbundle.icon := Some(file("src/deploy/macosx/icon.icns"))
 appbundle.mainClass := JFX.mainClass.value
 appbundle.executable := file("src/deploy/macosx/universalJavaApplicationStub")
 
