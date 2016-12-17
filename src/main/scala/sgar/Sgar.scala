@@ -513,7 +513,7 @@ object Sgar extends JFXApp {
 
 object Helpers {
   def isMac: Boolean = System.getProperty("os.name").toLowerCase.contains("mac")
-  def isLinux: Boolean = System.getProperty("os.name").toLowerCase.contains("nix")
+  def isLinux: Boolean = System.getProperty("os.name").toLowerCase.matches("(.*nix)|(.*nux)")
   def isWin: Boolean = System.getProperty("os.name").toLowerCase.contains("win")
   def createTempFile(prefix: String, suffix: String): File = { // standard io.File.createTempFile points often to strange location
   val tag = System.currentTimeMillis().toString
