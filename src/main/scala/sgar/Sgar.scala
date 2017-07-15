@@ -19,6 +19,7 @@
 package sgar
 
 import sgar.GmailStuff.{Bodypart, ToDelete}
+import sgar.Helpers.MyWorker
 import buildinfo.BuildInfo
 
 import scala.collection.mutable.ListBuffer
@@ -38,17 +39,17 @@ import scalafx.scene.control.Alert.AlertType
 import HBox._
 import Button._
 import TreeTableColumn._
+import scalafx.concurrent.{Service, WorkerStateEvent}
+import scalafx.scene.shape.Rectangle
+import Rectangle._
+import scala.collection.JavaConverters._
+import scalafx.scene.paint.Color
+import scalafx.scene.text.Text
+
 import java.awt.Desktop
 import java.io.{File, FileInputStream, FileOutputStream, PrintStream}
 import java.net.URI
 
-import sgar.Helpers.MyWorker
-
-import scalafx.concurrent.{Service, WorkerStateEvent}
-import scalafx.scene.shape.Rectangle
-import Rectangle._
-import scalafx.scene.paint.Color
-import scalafx.scene.text.Text
 
 object Sgar extends JFXApp {
 
@@ -163,6 +164,7 @@ object Sgar extends JFXApp {
   tiroot.setExpanded(true)
 
   val ttv = new TreeTableView[TreeThing] {
+    vgrow = Priority.Always
     columnResizePolicy = TreeTableView.ConstrainedResizePolicy
     val colheaders = List("Gmail ID/Attachment #", "Subject/Filename", "Date/Size", "Sender/Type")
     for (i <- colheaders.indices) {
@@ -362,14 +364,18 @@ object Sgar extends JFXApp {
           }
         }
         setButtons(flist = true, getemails = true, rmattach = true)
+        Helpers.caffeinate(false)
       }
       task.onCancelled = () => {
         setButtons(flist = true, getemails = true)
+        Helpers.caffeinate(false)
       }
       task.onFailed = () => {
         showGmailErrorCleanup(task.getException)
         setButtons(flist = true, getemails = true)
+        Helpers.caffeinate(false)
       }
+      Helpers.caffeinate(true)
       new MyWorker[ListBuffer[ToDelete]]("Find emails...", task).runInBackground()
     }
   }
@@ -392,20 +398,25 @@ object Sgar extends JFXApp {
           dellist += td
         }
       }
+
       val task = GmailStuff.doDelete(dellist)
       task.onSucceeded = () => {
         Helpers.runUI { tiroot.children.clear() }
         setButtons(flist = true, getemails = true)
+        Helpers.caffeinate(false)
       }
       task.onCancelled = () => {
         Helpers.runUI { tiroot.children.clear() }
         setButtons(flist = true, getemails = true)
+        Helpers.caffeinate(false)
       }
       task.onFailed = () => {
         Helpers.runUI { tiroot.children.clear() }
         showGmailErrorCleanup(task.getException)
         setButtons(flist = true, getemails = true)
+        Helpers.caffeinate(false)
       }
+      Helpers.caffeinate(true)
       new MyWorker[Unit]("Remove attachments...", task).runInBackground()
     }
   }
@@ -499,10 +510,15 @@ object Sgar extends JFXApp {
     updatePropertiesForAccount()
     updateAccountsPropertiesFromGui()
     saveSettings()
+    Helpers.caffeinate(false)
     if (logps != null) logps.close()
     super.stopApp()
     System.exit(0)
   }
+
+  sys.addShutdownHook({
+    Helpers.caffeinate(false)
+  })
 
   // init
   setButtons(flist = true, getemails = true)
@@ -528,6 +544,22 @@ object Helpers {
         def run() { f }
       })
     } else { f }
+  }
+
+  private var caffProc: Process = _
+  def caffeinate(doit: Boolean): Unit = {
+    if (isMac) {
+      println(s"caffeinate ($doit)...")
+      if (doit) {
+        if (caffProc == null) {
+          val pb = new ProcessBuilder(List(/*"/usr/bin/bash", "-c", "ls"*/"/usr/bin/caffeinate").asJava).inheritIO()
+          caffProc = pb.start()
+        }
+      } else {
+        if (caffProc != null) caffProc.destroyForcibly()
+        caffProc = null
+      }
+    }
   }
 
   // https://github.com/scalafx/ProScalaFX/blob/master/src/proscalafx/ch06/ServiceExample.scala

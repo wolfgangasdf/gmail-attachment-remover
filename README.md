@@ -76,4 +76,5 @@ Please use the bitbucket-provided tools for bug reports and contributed code. An
 * IMAP message flags are preserved.
 * Gmail message labels are preserved. If the `label` tag (see above) exists, it is removed after attachment removal (doesn't work for conversation view).
 * The processed mails get a new message-ID, which doesn't matter.
+* On mac, the computer doesn't sleep during "Find emails" and "Remove attachments"
 * License: GPL
