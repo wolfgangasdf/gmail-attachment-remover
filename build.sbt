@@ -4,13 +4,13 @@ name := "sgar"
 organization := "com.sgar"
 version := "0.1-SNAPSHOT"
 javaOptions ++= Seq("-Xms100m", "-Xmx300m")
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.6"
 scalacOptions ++= Seq("-feature", "-unchecked", "-deprecation", "-encoding", "UTF-8")
 
 libraryDependencies ++= Seq(
-  "org.scalafx" %% "scalafx" % "8.0.102-R11",
-  "com.sun.mail" % "javax.mail" % "1.5.6",
-  "com.sun.mail" % "gimap" % "1.5.6"
+  "org.scalafx" %% "scalafx" % "8.0.144-R12",
+  "javax.mail" % "javax.mail-api" % "1.6.1", // https://mvnrepository.com/artifact/javax.mail/javax.mail-api
+  "com.sun.mail" % "gimap" % "1.6.1"
 )
 
 lazy val root = (project in file(".")).

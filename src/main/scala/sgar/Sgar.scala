@@ -70,6 +70,7 @@ object Sgar extends JFXApp {
   val logfile = Helpers.createTempFile("sgar",".txt")
   logps = new FileOutputStream(logfile)
 
+  System.setProperty("mail.mime.parameters.strict", "false") // allow whitespace in attachment names without quote
 
   class MyConsole(errchan: Boolean) extends java.io.OutputStream {
     override def write(b: Int): Unit = {

@@ -2,7 +2,7 @@
 addSbtPlugin("no.vedaadata" %% "sbt-javafx" % "0.7")
 
 ///////////////// access build.scala info from scala
-addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.6.1")
+addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.7.0")
 
 ///////////////// mac bundle
 addSbtPlugin("de.sciss" % "sbt-appbundle" % "1.0.2")
