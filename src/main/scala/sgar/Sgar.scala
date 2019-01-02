@@ -55,7 +55,7 @@ object Sgar extends JFXApp {
 
   val props = new java.util.Properties()
 
-  val home = "https://bitbucket.org/wolfgang/gmail-attachment-remover"
+  val home = "https://github.com/wolfgangasdf/gmail-attachment-remover"
   val versionInfo = s"SGAR version ${BuildInfo.version}, buildtime ${BuildInfo.buildTime}"
   val space = 4.0
   var currentAccount: String = _

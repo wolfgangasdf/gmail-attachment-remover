@@ -16,7 +16,7 @@ Do this in Gmail:
 On your computer:
 
 * Get the [Java JRE](http://www.oracle.com/technetwork/java/javase/downloads/index.html) >= 8u101. Don't forget to untick the [crapware](https://www.google.com/search?q=java+crapware) installer, and/or [disable it permanently](https://www.java.com/en/download/faq/disable_offers.xml)!
-* [Download a zip](https://bitbucket.org/wolfgang/gmail-attachment-remover/downloads) for Mac or (Windows, Linux), extract it somewhere and double-click the app (Mac) or
+* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases) for Mac or (Windows, Linux), extract it somewhere and double-click the app (Mac) or
   jar file (Windows, Linux).
 * Settings:
     * Gmail account (email): You can deal with multiple accounts with different settings.
@@ -60,7 +60,7 @@ Run the program from terminal and package it:
 
 
 ## Suggestions, bug reports, pull requests
-Please use the bitbucket-provided tools for bug reports and contributed code. Anything is welcome!
+Please use the provided tools for bug reports and contributed code. Anything is welcome!
 
 
 ## Used frameworks
