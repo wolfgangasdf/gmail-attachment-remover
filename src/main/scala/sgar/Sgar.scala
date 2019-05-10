@@ -20,7 +20,6 @@ package sgar
 
 import sgar.GmailStuff.{Bodypart, ToDelete}
 import sgar.Helpers.MyWorker
-import buildinfo.BuildInfo
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -42,13 +41,15 @@ import TreeTableColumn._
 import scalafx.concurrent.{Service, WorkerStateEvent}
 import scalafx.scene.shape.Rectangle
 import Rectangle._
+
 import scala.collection.JavaConverters._
 import scalafx.scene.paint.Color
 import scalafx.scene.text.Text
-
 import java.awt.Desktop
-import java.io.{File, FileInputStream, FileOutputStream, PrintStream}
+import java.io.{File, FileInputStream, FileOutputStream, IOException, PrintStream}
 import java.net.URI
+import java.util.Date
+import java.util.jar.JarFile
 
 
 object Sgar extends JFXApp {
@@ -56,18 +57,18 @@ object Sgar extends JFXApp {
   val props = new java.util.Properties()
 
   val home = "https://github.com/wolfgangasdf/gmail-attachment-remover"
-  val versionInfo = s"SGAR version ${BuildInfo.version}, buildtime ${BuildInfo.buildTime}"
+  val versionInfo = s"SGAR build time: ${getClassBuildTime.toString}"
   val space = 4.0
   var currentAccount: String = _
 
   // redirect console output, must happen on top of this object!
-  val oldOut = System.out
-  val oldErr = System.err
+  val oldOut: PrintStream = System.out
+  val oldErr: PrintStream = System.err
   var logps: FileOutputStream = _
   System.setOut(new PrintStream(new MyConsole(false), true))
   System.setErr(new PrintStream(new MyConsole(true), true))
 
-  val logfile = Helpers.createTempFile("sgar",".txt")
+  val logfile: File = Helpers.createTempFile("sgar",".txt")
   logps = new FileOutputStream(logfile)
 
   System.setProperty("mail.mime.parameters.strict", "false") // allow whitespace in attachment names without quote
@@ -80,8 +81,43 @@ object Sgar extends JFXApp {
     }
   }
 
-  val logView = new TextArea {
+  val logView: TextArea = new TextArea {
     text = "============= Application log ==================== \n"
+  }
+
+  // https://stackoverflow.com/a/22404140
+  import java.net.URISyntaxException
+  def getClassBuildTime: Date = {
+    var d: Date = null
+    val currentClass = new Object() {}.getClass.getEnclosingClass
+    val resource = currentClass.getResource(currentClass.getSimpleName + ".class")
+    if (resource != null) {
+      if (resource.getProtocol.equals("file")) {
+        try {
+          d = new Date(new File(resource.toURI).lastModified)
+        } catch { case _: URISyntaxException => }
+      } else if (resource.getProtocol.equals("jar")) {
+        val path = resource.getPath
+        d = new Date( new File(path.substring(5, path.indexOf("!"))).lastModified )
+      } else if (resource.getProtocol.equals("zip")) {
+        val path = resource.getPath
+        val jarFileOnDisk = new File(path.substring(0, path.indexOf("!")))
+        //long jfodLastModifiedLong = jarFileOnDisk.lastModified ();
+        //Date jfodLasModifiedDate = new Date(jfodLastModifiedLong);
+
+        try{
+          val jf = new JarFile(jarFileOnDisk)
+          val ze = jf.getEntry (path.substring(path.indexOf("!") + 2)) //Skip the ! and the /
+          val zeTimeLong = ze.getTime
+          val zeTimeDate = new Date(zeTimeLong)
+          d = zeTimeDate
+        } catch {
+          case _: IOException =>
+          case _: RuntimeException =>
+        }
+      }
+    }
+    d
   }
 
   def getSettingsFile: File = {
@@ -164,7 +200,7 @@ object Sgar extends JFXApp {
   val tiroot = new TreeItem[TreeThing](new TreeThing(null, null))
   tiroot.setExpanded(true)
 
-  val ttv = new TreeTableView[TreeThing] {
+  val ttv: TreeTableView[TreeThing] = new TreeTableView[TreeThing] {
     vgrow = Priority.Always
     columnResizePolicy = TreeTableView.ConstrainedResizePolicy
     val colheaders = List("Gmail ID/Attachment #", "Subject/Filename", "Date/Size", "Sender/Type")
@@ -178,14 +214,14 @@ object Sgar extends JFXApp {
     showRoot = false
   }
 
-  val btRemoveRows = new Button("Remove selected rows") {
+  val btRemoveRows: Button = new Button("Remove selected rows") {
     tooltip = new Tooltip { text = "... to prevent attachments from being removed"}
     onAction = (_: ActionEvent) => {
       tiroot.getChildren.removeAll(ttv.getSelectionModel.getSelectedItems)
     }
   }
 
-  val listPane = new VBox(space) {
+  val listPane: VBox = new VBox(space) {
     vgrow = Priority.Always
     maxHeight = Double.MaxValue
     fillWidth = true
@@ -199,7 +235,7 @@ object Sgar extends JFXApp {
     )
   }
 
-  val cbaccount = new ChoiceBox[String] {
+  val cbaccount: ChoiceBox[String] = new ChoiceBox[String] {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     tooltip = new Tooltip { text = "Gmail email adress" }
@@ -210,7 +246,7 @@ object Sgar extends JFXApp {
     }
   }
 
-  val tfpassword = new PasswordField {
+  val tfpassword: PasswordField = new PasswordField {
     prefWidth = 140
     text = ""
     tooltip = new Tooltip { text = "Password is saved in clear text in settings file." }
@@ -222,30 +258,30 @@ object Sgar extends JFXApp {
   println("Logging to file " + logfile.getPath)
 
 
-  val tfbackupdir = new TextField {
+  val tfbackupdir: TextField = new TextField {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
     tooltip = new Tooltip { text = "Emails are saved here before attachments are removed" }
   }
-  val tfminbytes = new TextField { text =  "" ; tooltip = new Tooltip { text = "Minimum size of attachments for being considered for removal" } }
-  val tflimit = new TextField { text = "" ; tooltip = new Tooltip { text = "Maximum number of emails to be considered in a single run" } }
-  val tflabel = new TextField {
+  val tfminbytes: TextField = new TextField { text =  "" ; tooltip = new Tooltip { text = "Minimum size of attachments for being considered for removal" } }
+  val tflimit: TextField = new TextField { text = "" ; tooltip = new Tooltip { text = "Maximum number of emails to be considered in a single run" } }
+  val tflabel: TextField = new TextField {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
     tooltip = new Tooltip { text = "Only consider emails having this label; consider all if empty" }
   }
-  val cbgmailsearch = new ComboBox[String] {
+  val cbgmailsearch: ComboBox[String] = new ComboBox[String] {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
-    val strings = ObservableBuffer("size:1MB has:attachment -in:inbox", "size:1MB has:attachment older_than:12m -in:inbox")
+    val strings: ObservableBuffer[String] = ObservableBuffer("size:1MB has:attachment -in:inbox", "size:1MB has:attachment older_than:12m -in:inbox")
     items = strings
     editable = true
   }
 
-  val bSelectbackupdir = new Button("Select...") {
+  val bSelectbackupdir: Button = new Button("Select...") {
     onAction = (_: ActionEvent) => {
       val fcbackupdir = new DirectoryChooser {
         title = "Pick backup folder..."
@@ -274,7 +310,7 @@ object Sgar extends JFXApp {
     GmailStuff.limit = tflimit.text.value.toInt
   }
 
-  val btFolderList = new Button("Get gmail folder list") {
+  val btFolderList: Button = new Button("Get gmail folder list") {
     tooltip = new Tooltip { text = "Mainly for debug purposes. Output is shown in log."}
     onAction = (_: ActionEvent) => {
       setButtons()
@@ -291,7 +327,7 @@ object Sgar extends JFXApp {
     }
   }
 
-  val btAbout = new Button("About") {
+  val btAbout: Button = new Button("About") {
     tooltip = new Tooltip { text = s"Open website $home"}
     onAction = (_: ActionEvent) => {
       println(versionInfo)
@@ -309,16 +345,16 @@ object Sgar extends JFXApp {
   // would be nice but is not trivial. unfortunately tooltips don't do that automatically & don't have an arrow.
   // simplest case: check particular x-position, then check for closest y-position without collision with boxes!
   // (let arrows overlap) and/or search afterwards for best arrow connection (in 5px steps, 2D!)
-  val btHelp = new Button("Help") {
+  val btHelp: Button = new Button("Help") {
     tooltip = new Tooltip { text = "Show all tooltips"}
     onAction = (_: ActionEvent) => {
       println("XXX: " + Sgar.stage.getScene.getWindow)
-      def transparentStage = new Stage() {
+      def transparentStage: Stage = new Stage() {
         initStyle(StageStyle.Transparent)
         initOwner(Sgar.stage)
         x = Sgar.stage.getX
         y = Sgar.stage.getY + Sgar.stage.getHeight - Sgar.stage.getScene.getHeight // add window title bar height!
-        val group = new Group {
+        val group: Group = new Group {
           children.add(new Rectangle { stroke = Color.Red; fill = null; x = 0; y = 0; width = Sgar.stage.getScene.getWidth; height = Sgar.stage.getScene.getHeight})
           Seq(btGetEmails,btRemoveAttachments,btRemoveRows,btFolderList,btAbout, cbaccount, cbgmailsearch, tflabel).foreach(nn => {
             val tt = nn.getTooltip
@@ -328,7 +364,7 @@ object Sgar extends JFXApp {
             println(s"xx=$xx t=${tt.getText}")
           })
         }
-        val myScene = new Scene(group, Sgar.stage.getScene.getWidth, Sgar.stage.getScene.getHeight) {
+        val myScene: Scene = new Scene(group, Sgar.stage.getScene.getWidth, Sgar.stage.getScene.getHeight) {
           fill = null
         }
         scene = myScene
@@ -346,7 +382,7 @@ object Sgar extends JFXApp {
     }
   }
 
-  val btGetEmails = new Button("Find emails") {
+  val btGetEmails: Button = new Button("Find emails") {
     tooltip = new Tooltip { text = "Find emails based on selected criteria"}
     onAction = (_: ActionEvent) => {
       setButtons()
@@ -381,7 +417,7 @@ object Sgar extends JFXApp {
     }
   }
 
-  val btRemoveAttachments = new Button("Remove attachments") {
+  val btRemoveAttachments: Button = new Button("Remove attachments") {
     tooltip = new Tooltip { text = "Remove all attachments shown in the table below"}
     onAction = (_: ActionEvent) => {
       setButtons()
@@ -422,7 +458,7 @@ object Sgar extends JFXApp {
     }
   }
 
-  val settingsPane = new VBox(space) {
+  val settingsPane: VBox = new VBox(space) {
     children ++= List(
       new HBox(space) {
         alignment = Pos.CenterLeft
@@ -491,7 +527,7 @@ object Sgar extends JFXApp {
     )
   }
 
-  val cont = new VBox(space) {
+  val cont: VBox = new VBox(space) {
     children ++= List(settingsPane, listPane, logView)
     padding = Insets(2*space)
   }
@@ -541,8 +577,8 @@ object Helpers {
   }
   def runUI( f: => Unit ) {
     if (!scalafx.application.Platform.isFxApplicationThread) {
-      scalafx.application.Platform.runLater( new Runnable() {
-        def run() { f }
+      scalafx.application.Platform.runLater( () => {
+        f
       })
     } else { f }
   }
@@ -569,8 +605,8 @@ object Helpers {
       override def createTask(): javafx.concurrent.Task[T] = atask
     })
     val lab = new Label("")
-    val progress = new ProgressBar { minWidth = 250 }
-    val al = new Dialog[Unit] {
+    val progress: ProgressBar = new ProgressBar { minWidth = 250 }
+    val al: Dialog[Unit] = new Dialog[Unit] {
       initOwner(Sgar.stage)
       title = atitle
       dialogPane.value.content = new VBox { children ++= Seq(lab, progress) }

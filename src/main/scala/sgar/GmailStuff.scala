@@ -21,14 +21,15 @@ import scala.collection.mutable.ListBuffer
 import scala.util.control.Breaks._
 import java.io.{FileInputStream, FileOutputStream}
 import java.util.Properties
+
 import javax.mail._
 import javax.mail.internet._
-
 import com.sun.mail.gimap._
 import com.sun.mail.iap.Argument
 import com.sun.mail.imap.{IMAPFolder, IMAPMessage}
 import com.sun.mail.imap.IMAPFolder.ProtocolCommand
 import com.sun.mail.imap.protocol.IMAPProtocol
+import javafx.concurrent.Task
 
 
 object GmailStuff {
@@ -98,7 +99,7 @@ object GmailStuff {
     lb
   }
 
-  def getToDelete = new javafx.concurrent.Task[ListBuffer[ToDelete]] {
+  def getToDelete: Task[ListBuffer[ToDelete]] = new javafx.concurrent.Task[ListBuffer[ToDelete]] {
     override def call(): ListBuffer[ToDelete] = {
       val dellist = new ListBuffer[ToDelete]()
       println("Find requested emails with attachments...")
@@ -144,7 +145,7 @@ object GmailStuff {
     }
   }
 
-  def doDelete(dellist: ListBuffer[ToDelete]) = new javafx.concurrent.Task[Unit] {
+  def doDelete(dellist: ListBuffer[ToDelete]): Task[Unit] = new javafx.concurrent.Task[Unit] {
     override def call(): Unit = {
       var startns: Long = -1
       var allmail: IMAPFolder = null

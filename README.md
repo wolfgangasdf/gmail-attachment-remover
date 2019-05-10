@@ -15,7 +15,7 @@ Do this in Gmail:
 
 On your computer:
 
-* Get the [Java JRE](http://www.oracle.com/technetwork/java/javase/downloads/index.html) >= 8u101. Don't forget to untick the [crapware](https://www.google.com/search?q=java+crapware) installer, and/or [disable it permanently](https://www.java.com/en/download/faq/disable_offers.xml)!
+* Get the [Java JRE 8](http://www.oracle.com/technetwork/java/javase/downloads/index.html). Don't forget to untick the [crapware](https://www.google.com/search?q=java+crapware) installer, and/or [disable it permanently](https://www.java.com/en/download/faq/disable_offers.xml)!
 * [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases) for Mac or (Windows, Linux), extract it somewhere and double-click the app (Mac) or
   jar file (Windows, Linux).
 * Settings:
@@ -47,7 +47,7 @@ On your computer:
 
 ## How to develop, compile & package
 
-* Get Java JDK >= 8u101
+* Get Java JDK 8
 * check out the code (`hg clone ...` or download a zip)
 * I use the free community version of [IntelliJ IDEA](https://www.jetbrains.com/idea/download/) with the scala
 plugin for development, just open the project to get started.
@@ -67,7 +67,8 @@ Please use the provided tools for bug reports and contributed code. Anything is 
 
 * [scala](http://scala-lang.org)
 * [scalafx](http://www.scalafx.org) as wrapper for javafx
-* [sbt-javafx](https://github.com/kavedaa/sbt-javafx) for packaging
+* [Shadow](https://github.com/johnrengelman/shadow) to package
+* [Gradle-macappbundle](https://github.com/crotwell/gradle-macappbundle) to make mac app bundle
 * [javamail](http://www.oracle.com/technetwork/java/javamail/index.html) for everything about IMAP and Gmail
 
 ## Notes
