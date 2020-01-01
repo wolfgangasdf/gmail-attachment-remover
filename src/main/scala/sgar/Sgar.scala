@@ -42,14 +42,16 @@ import scalafx.concurrent.{Service, WorkerStateEvent}
 import scalafx.scene.shape.Rectangle
 import Rectangle._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scalafx.scene.paint.Color
 import scalafx.scene.text.Text
-import java.awt.Desktop
+import java.awt.{Desktop, Taskbar}
 import java.io.{File, FileInputStream, FileOutputStream, IOException, PrintStream}
 import java.net.URI
 import java.util.Date
 import java.util.jar.JarFile
+
+import javax.imageio.ImageIO
 
 
 object Sgar extends JFXApp {
@@ -556,6 +558,9 @@ object Sgar extends JFXApp {
   sys.addShutdownHook({
     Helpers.caffeinate(false)
   })
+
+  // Dock icon
+  if (Helpers.isMac) Taskbar.getTaskbar.setIconImage(ImageIO.read(getClass.getResource("/icon-128.png")))
 
   // init
   setButtons(flist = true, getemails = true)

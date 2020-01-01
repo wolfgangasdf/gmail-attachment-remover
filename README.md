@@ -15,9 +15,8 @@ Do this in Gmail:
 
 On your computer:
 
-* Get the [Java JRE 8](http://www.oracle.com/technetwork/java/javase/downloads/index.html). Don't forget to untick the [crapware](https://www.google.com/search?q=java+crapware) installer, and/or [disable it permanently](https://www.java.com/en/download/faq/disable_offers.xml)!
-* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases) for Mac or (Windows, Linux), extract it somewhere and double-click the app (Mac) or
-  jar file (Windows, Linux).
+* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases), extract it somewhere and double-click the app (Mac) or run
+`bin/GmailAttachmentRemover.bat` (Windows) or `bin/GmailAttachmentRemover` (Linux).
 * Settings:
     * Gmail account (email): You can deal with multiple accounts with different settings.
     * Password: I suggest to use "application specific passwords" just click the button and get a password for "Mail".
@@ -47,29 +46,24 @@ On your computer:
 
 ## How to develop, compile & package
 
-* Get Java JDK 8
-* check out the code (`hg clone ...` or download a zip)
+* Get Java 13 from https://jdk.java.net
+* Clone the repository
 * I use the free community version of [IntelliJ IDEA](https://www.jetbrains.com/idea/download/) with the scala
 plugin for development, just open the project to get started.
 
-Run the program from terminal and package it:
+Packaging:
 
-* Install the [Scala Build Tool](http://www.scala-sbt.org/)
-* Compile and run manually: `sbt run`
-* Package for all platforms: `sbt dist`. The resulting files are in `target/`
-
-
-## Suggestions, bug reports, pull requests
-Please use the provided tools for bug reports and contributed code. Anything is welcome!
+* Download JDKs for the other platforms (and/or adapt `cPlatforms` in `build.gradle.kts`), extract them and set the environment variables to it:
+  * `export JDK_MAC_HOME=...`, `export JDK_WIN_HOME=...`, `export JDK_LINUX_HOME=...`
+* Package for all platforms: `gradle dist`. The resulting files are in `build/crosspackage`
 
 
 ## Used frameworks
 
 * [scala](http://scala-lang.org)
 * [scalafx](http://www.scalafx.org) as wrapper for javafx
-* [Shadow](https://github.com/johnrengelman/shadow) to package
-* [Gradle-macappbundle](https://github.com/crotwell/gradle-macappbundle) to make mac app bundle
 * [javamail](http://www.oracle.com/technetwork/java/javamail/index.html) for everything about IMAP and Gmail
+* [Runtime plugin](https://github.com/beryx/badass-runtime-plugin) to make runtimes with JRE
 
 ## Notes
 

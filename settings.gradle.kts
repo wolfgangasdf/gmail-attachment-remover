@@ -1,2 +1,2 @@
-rootProject.name = "sgar"
+rootProject.name = "GmailAttachmentRemover"
 

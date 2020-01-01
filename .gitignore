@@ -3,3 +3,5 @@ target/
 glob:*.iml
 .DS_Store
 sgarsettings.txt
+.gradle
+/build
