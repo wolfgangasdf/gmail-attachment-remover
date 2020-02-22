@@ -1,5 +1,4 @@
 
-import org.openjfx.gradle.JavaFXModule
 import org.openjfx.gradle.JavaFXOptions
 
 buildscript {
@@ -8,9 +7,6 @@ buildscript {
         jcenter()
     }
 }
-
-// todo
-// javaOptions ++= Seq("-Xms100m", "-Xmx300m")
 
 group = "com.sgar"
 version = "1.0-SNAPSHOT"
@@ -45,16 +41,16 @@ repositories {
 javafx {
     modules = listOf("javafx.base", "javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.media", "javafx.swing", "javafx.web")
     // set compileOnly for crosspackage to avoid packaging host javafx jmods for all target platforms
-    configuration = if (project.gradle.startParameter.taskNames.intersect(listOf("crosspackage", "dist")).isNotEmpty()) "compileOnly" else "compile"
+    configuration = if (project.gradle.startParameter.taskNames.intersect(listOf("crosspackage", "dist")).isNotEmpty()) "compileOnly" else "implementation"
 }
 val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
     implementation("org.scala-lang:scala-library:2.13.1")
-    compile("org.scalafx:scalafx_2.13:12.0.2-R18")
-    compile("javax.mail:javax.mail-api:1.6.2")
-    compile("com.sun.mail:javax.mail:1.6.2")
-    compile("com.sun.mail:gimap:1.6.4")
+    implementation("org.scalafx:scalafx_2.13:12.0.2-R18")
+    implementation("javax.mail:javax.mail-api:1.6.2")
+    implementation("com.sun.mail:javax.mail:1.6.2")
+    implementation("com.sun.mail:gimap:1.6.4")
     cPlatforms.forEach {platform ->
         val cfg = configurations.create("javafx_$platform")
         org.openjfx.gradle.JavaFXModule.getJavaFXModules(javaFXOptions.modules).forEach { m ->
@@ -74,11 +70,12 @@ runtime {
 }
 
 open class CrossPackage : DefaultTask() {
-    var execfilename = "execfilename"
-    var macicnspath = "macicnspath" // name should be execfilename.icns
+    @org.gradle.api.tasks.Input var execfilename = "execfilename"
+    @org.gradle.api.tasks.Input var macicnspath = "macicnspath"
 
     @TaskAction
     fun crossPackage() {
+        File("${project.buildDir.path}/crosspackage/").mkdirs()
         project.runtime.targetPlatforms.get().forEach { (t, _) ->
             println("targetplatform: $t")
             val imgdir = "${project.runtime.imageDir.get()}/${project.name}-$t"
@@ -89,8 +86,8 @@ open class CrossPackage : DefaultTask() {
                     project.delete(appp)
                     project.copy {
                         into(appp)
-                        from("$macicnspath/$execfilename.icns") {
-                            into("Contents/Resources")
+                        from(macicnspath) {
+                            into("Contents/Resources").rename { "$execfilename.icns" }
                         }
                         from("$imgdir/${project.application.executableDir}/${project.application.applicationName}") {
                             into("Contents/MacOS")
@@ -143,25 +140,13 @@ open class CrossPackage : DefaultTask() {
                     // touch folder to update Finder
                     File(appp).setLastModified(System.currentTimeMillis())
                     // zip it
-                    ant.withGroovyBuilder {
-                        "zip"("destfile" to "${project.buildDir.path}/crosspackage/$execfilename-mac.zip",
-                                "basedir" to "${project.buildDir.path}/crosspackage/mac") {
-                        }
-                    }
+                    org.gradle.kotlin.dsl.support.zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-mac.zip"), File("${project.buildDir.path}/crosspackage/mac"))
                 }
                 "win" -> {
-                    ant.withGroovyBuilder {
-                        "zip"("destfile" to "${project.buildDir.path}/crosspackage/$execfilename-win.zip",
-                                "basedir" to imgdir) {
-                        }
-                    }
+                    org.gradle.kotlin.dsl.support.zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-win.zip"), File(imgdir))
                 }
                 "linux" -> {
-                    ant.withGroovyBuilder {
-                        "zip"("destfile" to "${project.buildDir.path}/crosspackage/$execfilename-linux.zip",
-                                "basedir" to imgdir) {
-                        }
-                    }
+                    org.gradle.kotlin.dsl.support.zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-linux.zip"), File(imgdir))
                 }
             }
         }
@@ -171,7 +156,7 @@ open class CrossPackage : DefaultTask() {
 tasks.register<CrossPackage>("crosspackage") {
     dependsOn("runtime")
     execfilename = "GmailAttachmentRemover"
-    macicnspath = "src/deploy/macosx"
+    macicnspath = "src/deploy/macosx/GmailAttachmentRemover.icns"
 }
 
 tasks.withType(CreateStartScripts::class).forEach {script ->
@@ -194,9 +179,7 @@ tasks["runtime"].doLast {
     }
 }
 
-tasks {
-    val dist by creating {
-        dependsOn("crosspackage")
-        doLast { println("Created GmailAttachmentRemover zips in build/dist") }
-    }
+task("dist") {
+    dependsOn("crosspackage")
+    doLast { println("Created GmailAttachmentRemover zips in build/dist") }
 }
