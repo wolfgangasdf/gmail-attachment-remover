@@ -15,7 +15,7 @@ Do this in Gmail:
 
 On your computer:
 
-* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases), extract it somewhere and run it. It is not signed, google for "open unsigned <platform>".
+* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases), extract it somewhere and run it. It is not signed, google for "open unsigned mac/win".
 * Settings:
     * Gmail account (email): You can deal with multiple accounts with different settings.
     * Password: I suggest to use "application specific passwords" just click the button and get a password for "Mail".
