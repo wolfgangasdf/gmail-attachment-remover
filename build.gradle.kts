@@ -1,4 +1,5 @@
 
+import org.gradle.kotlin.dsl.support.zipTo
 import org.openjfx.gradle.JavaFXOptions
 
 buildscript {
@@ -13,19 +14,17 @@ version = "1.0-SNAPSHOT"
 val cPlatforms = listOf("mac", "linux", "win") // compile for these platforms. "mac", "linux", "win"
 
 println("Current Java version: ${JavaVersion.current()}")
-java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-    if (JavaVersion.current().toString() != "13") throw GradleException("Use Java 13")
-}
+if (JavaVersion.current().majorVersion.toInt() < 14) throw GradleException("Use Java >= 14")
+
+println("Current Java version: ${JavaVersion.current()}")
 
 plugins {
     scala
     id("idea")
     application
-    id("com.github.ben-manes.versions") version "0.27.0"
+    id("com.github.ben-manes.versions") version "0.28.0"
     id("org.openjfx.javafxplugin") version "0.0.8"
-    id("org.beryx.runtime") version "1.8.0"
+    id("org.beryx.runtime") version "1.8.1"
 }
 
 application {
@@ -113,7 +112,7 @@ open class CrossPackage : DefaultTask() {
                           <key>CFBundleIconFile</key>
                           <string>$execfilename.icns</string>
                           <key>CFBundleIdentifier</key>
-                          <string>main</string>
+                          <string>${project.group}</string>
                           <key>CFBundleInfoDictionaryVersion</key>
                           <string>6.0</string>
                           <key>CFBundleName</key>
@@ -140,13 +139,20 @@ open class CrossPackage : DefaultTask() {
                     // touch folder to update Finder
                     File(appp).setLastModified(System.currentTimeMillis())
                     // zip it
-                    org.gradle.kotlin.dsl.support.zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-mac.zip"), File("${project.buildDir.path}/crosspackage/mac"))
+                    zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-mac.zip"), File("${project.buildDir.path}/crosspackage/mac"))
                 }
                 "win" -> {
-                    org.gradle.kotlin.dsl.support.zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-win.zip"), File(imgdir))
+                    File("$imgdir/bin/$execfilename.bat").delete() // from runtime, not nice
+                    val pf = File("$imgdir/$execfilename.bat")
+                    pf.writeText("""
+                        set JLINK_VM_OPTIONS="${project.application.applicationDefaultJvmArgs.joinToString(" ")}"
+                        set DIR=%~dp0
+                        start "" "%DIR%\bin\javaw" %JLINK_VM_OPTIONS% -classpath "%DIR%/lib/*" ${project.application.mainClassName} 
+                    """.trimIndent())
+                    zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-win.zip"), File(imgdir))
                 }
                 "linux" -> {
-                    org.gradle.kotlin.dsl.support.zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-linux.zip"), File(imgdir))
+                    zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-linux.zip"), File(imgdir))
                 }
             }
         }
@@ -181,5 +187,9 @@ tasks["runtime"].doLast {
 
 task("dist") {
     dependsOn("crosspackage")
-    doLast { println("Created GmailAttachmentRemover zips in build/dist") }
+    doLast {
+        println("Deleting build/[image,jre,install]")
+        project.delete(project.runtime.imageDir.get(), project.runtime.jreDir.get(), "${project.buildDir.path}/install")
+        println("Created zips in build/crosspackage")
+    }
 }

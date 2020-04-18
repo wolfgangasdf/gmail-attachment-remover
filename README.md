@@ -15,8 +15,7 @@ Do this in Gmail:
 
 On your computer:
 
-* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases), extract it somewhere and double-click the app (Mac) or run
-`bin/GmailAttachmentRemover.bat` (Windows) or `bin/GmailAttachmentRemover` (Linux).
+* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases), extract it somewhere and run it. It is not signed, google for "open unsigned <platform>".
 * Settings:
     * Gmail account (email): You can deal with multiple accounts with different settings.
     * Password: I suggest to use "application specific passwords" just click the button and get a password for "Mail".
@@ -46,7 +45,7 @@ On your computer:
 
 ## How to develop, compile & package
 
-* Get Java 13 from https://jdk.java.net
+* Get Java 14 from https://jdk.java.net
 * Clone the repository
 * I use the free community version of [IntelliJ IDEA](https://www.jetbrains.com/idea/download/) with the scala
 plugin for development, just open the project to get started.
