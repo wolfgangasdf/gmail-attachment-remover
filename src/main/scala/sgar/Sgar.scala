@@ -133,7 +133,7 @@ object Sgar extends JFXApp {
     new File(fp + File.separator + "sgarsettings.txt")
   }
 
-  def loadSettings() {
+  def loadSettings(): Unit = {
     val ff = getSettingsFile
     println("load config: settings file = " + ff.getPath)
     if (ff.exists()) {
@@ -143,7 +143,7 @@ object Sgar extends JFXApp {
     }
   }
 
-  def saveSettings() {
+  def saveSettings(): Unit = {
     val ff = getSettingsFile
     println("save config: settings file = " + ff.getPath)
     if (!ff.getParentFile.exists) ff.getParentFile.mkdirs()
@@ -292,7 +292,7 @@ object Sgar extends JFXApp {
     }
   }
 
-  def setButtons(flist: Boolean = false, getemails: Boolean = false, rmattach: Boolean = false) {
+  def setButtons(flist: Boolean = false, getemails: Boolean = false, rmattach: Boolean = false): Unit = {
     Helpers.runUI {
       btFolderList.disable = !flist
       btGetEmails.disable = !getemails
@@ -580,7 +580,7 @@ object Helpers {
       dir = "/tmp"
     new File(dir + "/" + prefix + "-" + tag + suffix)
   }
-  def runUI( f: => Unit ) {
+  def runUI( f: => Unit ): Unit = {
     if (!scalafx.application.Platform.isFxApplicationThread) {
       scalafx.application.Platform.runLater( () => {
         f

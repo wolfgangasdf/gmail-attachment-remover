@@ -68,7 +68,7 @@ object GmailStuff {
     }
   }
 
-  private def reconnect() {
+  private def reconnect(): Unit = {
     println("(re)connecting...")
     if (store != null) if (store.isConnected) store.close()
     println(" connecting to gmail...")

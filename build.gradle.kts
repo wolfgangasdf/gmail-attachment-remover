@@ -22,13 +22,14 @@ plugins {
     scala
     id("idea")
     application
-    id("com.github.ben-manes.versions") version "0.28.0"
-    id("org.openjfx.javafxplugin") version "0.0.8"
-    id("org.beryx.runtime") version "1.8.1"
+    id("com.github.ben-manes.versions") version "0.33.0"
+    id("org.openjfx.javafxplugin") version "0.0.9"
+    id("org.beryx.runtime") version "1.11.4"
 }
 
 application {
     mainClassName = "sgar.Sgar"
+    applicationDefaultJvmArgs = listOf("-Dprism.verbose=true", "-Dprism.order=sw") // use software renderer
     //defaultTasks = tasks.run
 }
 
@@ -38,6 +39,7 @@ repositories {
 }
 
 javafx {
+    version = "14"
     modules = listOf("javafx.base", "javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.media", "javafx.swing")
     // set compileOnly for crosspackage to avoid packaging host javafx jmods for all target platforms
     configuration = if (project.gradle.startParameter.taskNames.intersect(listOf("crosspackage", "dist")).isNotEmpty()) "compileOnly" else "implementation"
@@ -45,11 +47,11 @@ javafx {
 val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
-    implementation("org.scala-lang:scala-library:2.13.1")
-    implementation("org.scalafx:scalafx_2.13:12.0.2-R18")
+    implementation("org.scala-lang:scala-library:2.13.3")
+    implementation("org.scalafx:scalafx_2.13:14-R19")
     implementation("javax.mail:javax.mail-api:1.6.2")
     implementation("com.sun.mail:javax.mail:1.6.2")
-    implementation("com.sun.mail:gimap:1.6.4")
+    implementation("com.sun.mail:gimap:1.6.5")
     cPlatforms.forEach {platform ->
         val cfg = configurations.create("javafx_$platform")
         org.openjfx.gradle.JavaFXModule.getJavaFXModules(javaFXOptions.modules).forEach { m ->
@@ -69,8 +71,8 @@ runtime {
 }
 
 open class CrossPackage : DefaultTask() {
-    @org.gradle.api.tasks.Input var execfilename = "execfilename"
-    @org.gradle.api.tasks.Input var macicnspath = "macicnspath"
+    @Input var execfilename = "execfilename"
+    @Input var macicnspath = "macicnspath"
 
     @TaskAction
     fun crossPackage() {
