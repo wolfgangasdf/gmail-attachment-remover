@@ -5,7 +5,6 @@ import org.openjfx.gradle.JavaFXOptions
 buildscript {
     repositories {
         mavenCentral()
-        jcenter()
     }
 }
 
@@ -14,7 +13,7 @@ version = "1.0-SNAPSHOT"
 val cPlatforms = listOf("mac", "linux", "win") // compile for these platforms. "mac", "linux", "win"
 
 println("Current Java version: ${JavaVersion.current()}")
-if (JavaVersion.current().majorVersion.toInt() < 14) throw GradleException("Use Java >= 14")
+if (JavaVersion.current().majorVersion.toInt() < 14) throw GradleException("Use Java >= 18")
 
 println("Current Java version: ${JavaVersion.current()}")
 
@@ -22,24 +21,23 @@ plugins {
     scala
     id("idea")
     application
-    id("com.github.ben-manes.versions") version "0.33.0"
-    id("org.openjfx.javafxplugin") version "0.0.9"
-    id("org.beryx.runtime") version "1.11.4"
+    id("com.github.ben-manes.versions") version "0.42.0"
+    id("org.openjfx.javafxplugin") version "0.0.12"
+    id("org.beryx.runtime") version "1.12.7"
 }
 
 application {
-    mainClassName = "sgar.Sgar"
+    mainClass.set("sgar.Sgar")
     applicationDefaultJvmArgs = listOf("-Dprism.verbose=true", "-Dprism.order=sw") // use software renderer
     //defaultTasks = tasks.run
 }
 
 repositories {
     mavenCentral()
-    jcenter()
 }
 
 javafx {
-    version = "14"
+    version = "18"
     modules = listOf("javafx.base", "javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.media", "javafx.swing")
     // set compileOnly for crosspackage to avoid packaging host javafx jmods for all target platforms
     configuration = if (project.gradle.startParameter.taskNames.intersect(listOf("crosspackage", "dist")).isNotEmpty()) "compileOnly" else "implementation"
@@ -47,8 +45,8 @@ javafx {
 val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
-    implementation("org.scala-lang:scala-library:2.13.3")
-    implementation("org.scalafx:scalafx_2.13:14-R19")
+    implementation("org.scala-lang:scala-library:2.13.8")
+    implementation("org.scalafx:scalafx_2.13:17.0.1-R26")
     implementation("javax.mail:javax.mail-api:1.6.2")
     implementation("com.sun.mail:javax.mail:1.6.2")
     implementation("com.sun.mail:gimap:1.6.5")

@@ -5,6 +5,7 @@ This is an app that connects to your Gmail account via imap and removes selected
 * Before removing an attachment, a local full backup of the raw email is saved. But you should save your important attachments manually before!
 * The removed attachment is replaced by a text-file attachment containing the original attachment filename and size.
 
+2021: Finally, someone has made a more complete app with a very similar design, I haven't tested or checked it but it looks nice: https://github.com/ilovefreesw/unattach
 
 ## Tutorial
 
