@@ -145,7 +145,7 @@ open class CrossPackage : DefaultTask() {
                     File("$imgdir/bin/$execfilename.bat").delete() // from runtime, not nice
                     val pf = File("$imgdir/$execfilename.bat")
                     pf.writeText("""
-                        set JLINK_VM_OPTIONS="${project.application.applicationDefaultJvmArgs.joinToString(" ")}"
+                        set JLINK_VM_OPTIONS=${project.application.applicationDefaultJvmArgs.joinToString(" ")}
                         set DIR=%~dp0
                         start "" "%DIR%\bin\javaw" %JLINK_VM_OPTIONS% -classpath "%DIR%/lib/*" ${project.application.mainClassName} 
                     """.trimIndent())

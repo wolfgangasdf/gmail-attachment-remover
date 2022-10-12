@@ -274,6 +274,7 @@ object Sgar extends JFXApp {
     text = ""
     tooltip = new Tooltip { text = "Only consider emails having this label; consider all if empty" }
   }
+  val cbCaffeinate = new CheckBox("Run caffeinate")
   val cbgmailsearch: ComboBox[String] = new ComboBox[String] {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
@@ -515,7 +516,8 @@ object Sgar extends JFXApp {
         new Label("Minimum Attachment size (bytes): "),
         tfminbytes,
         new Label("     Limit # messages: "),
-        tflimit
+        tflimit,
+        cbCaffeinate
       ) },
       new HBox(space) {
         alignment = Pos.Center
@@ -590,16 +592,18 @@ object Helpers {
 
   private var caffProc: Process = _
   def caffeinate(doit: Boolean): Unit = {
-    if (isMac) {
-      println(s"caffeinate ($doit)...")
-      if (doit) {
-        if (caffProc == null) {
-          val pb = new ProcessBuilder(List(/*"/usr/bin/bash", "-c", "ls"*/"/usr/bin/caffeinate").asJava).inheritIO()
-          caffProc = pb.start()
+    if (Sgar.cbCaffeinate.selected.getValue) {
+      if (isMac) {
+        println(s"caffeinate ($doit)...")
+        if (doit) {
+          if (caffProc == null) {
+            val pb = new ProcessBuilder(List(/*"/usr/bin/bash", "-c", "ls"*/ "/usr/bin/caffeinate").asJava).inheritIO()
+            caffProc = pb.start()
+          }
+        } else {
+          if (caffProc != null) caffProc.destroyForcibly()
+          caffProc = null
         }
-      } else {
-        if (caffProc != null) caffProc.destroyForcibly()
-        caffProc = null
       }
     }
   }

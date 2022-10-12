@@ -119,6 +119,7 @@ object GmailStuff {
           val bps = new ListBuffer[Bodypart]()
           val gm = message.asInstanceOf[GmailMessage]
           println(s"checking gid=${gm.getMsgId } subj=${message.getSubject } labels:${gm.getLabels.mkString(",") }")
+          updateMessage(s"checking gid=${gm.getMsgId } subj=${message.getSubject } labels:${gm.getLabels.mkString(",") }")
           val mp = gm.getContent
           mp match {
             case mmpm: MimeMultipart =>
@@ -158,8 +159,9 @@ object GmailStuff {
           throw new InterruptedException("doDelete cancelled!")
         }
         count += 1
-        if (startns == -1 || (System.nanoTime - startns) / 1e9 > 10 * 60) {
-          // re-open connection incl auth after 10 minutes... Gmail seems to drop it from time to time.
+        // TODO testing: re-connect for each message, gmail drops connection :-(
+//        if (startns == -1 || (System.nanoTime - startns) / 1e9 > 10 * 60) {
+//          // re-open connection incl auth after 10 minutes... Gmail seems to drop it from time to time.
           println("----- Re-connect after 10 minutes...")
           if (store.isConnected) store.close()
           reconnect()
@@ -168,7 +170,7 @@ object GmailStuff {
           allmail.open(Folder.READ_WRITE)
           startns = System.nanoTime
           println("----- Re-connected!")
-        }
+//        }
         println(s"[$count/${dellist.length }] gmid=${todel.gmid } subj=${todel.subject } date=${todel.date }")
 
         val msg = allmail.search(new GmailMsgIdTerm(todel.gmid)).head

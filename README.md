@@ -16,7 +16,7 @@ Do this in Gmail:
 
 On your computer:
 
-* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases), extract it somewhere and run it. It is not signed, google for "open unsigned mac/win".
+* [Download a zip](https://github.com/wolfgangasdf/gmail-attachment-remover/releases), extract it (on mac, use https://theunarchiver.com/ or fix permissions) somewhere and run it. It is not signed, google for "open unsigned mac/win".
 * Settings:
     * Gmail account (email): You can deal with multiple accounts with different settings.
     * Password: I suggest to use "application specific passwords" just click the button and get a password for "Mail".
@@ -26,6 +26,7 @@ On your computer:
     * `gmail search`: use a "RAW Gmail search term" to pre-filter emails. See the examples in the drop-down list and [here](https://support.google.com/mail/answer/7190?hl=en) for information.
         `size:1MB has:attachment older_than:12m -in:inbox` is a good choice: mails that are small, in the inbox, within the last 12 month, or without attachment, are skipped.
     * `minimum Attachment size`: Select a minimum size above which attachments will be considered. Important for multiple attachments in mails!
+    * `run caffeinate`: select to prevent sleep during long actions (on mac).
 * Click `Find emails`. The table will contain emails matching the criteria.
 * Check the table and remove rows from the table if they should not be processed.
 * Click `Remove attachments` to start the removal procedure.
