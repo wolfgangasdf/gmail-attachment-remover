@@ -11,9 +11,9 @@ buildscript {
 group = "com.sgar"
 version = "1.0-SNAPSHOT"
 val cPlatforms = listOf("mac", "linux", "win") // compile for these platforms. "mac", "linux", "win"
-
+val minJavaVersion = 18
 println("Current Java version: ${JavaVersion.current()}")
-if (JavaVersion.current().majorVersion.toInt() < 14) throw GradleException("Use Java >= 18")
+if (JavaVersion.current().majorVersion.toInt() < minJavaVersion) throw GradleException("Use Java >= $minJavaVersion")
 
 println("Current Java version: ${JavaVersion.current()}")
 
@@ -21,15 +21,14 @@ plugins {
     scala
     id("idea")
     application
-    id("com.github.ben-manes.versions") version "0.42.0"
-    id("org.openjfx.javafxplugin") version "0.0.12"
+    id("com.github.ben-manes.versions") version "0.43.0"
+    id("org.openjfx.javafxplugin") version "0.0.13"
     id("org.beryx.runtime") version "1.12.7"
 }
 
 application {
     mainClass.set("sgar.Sgar")
     applicationDefaultJvmArgs = listOf("-Dprism.verbose=true", "-Dprism.order=sw") // use software renderer
-    //defaultTasks = tasks.run
 }
 
 repositories {
@@ -38,18 +37,19 @@ repositories {
 
 javafx {
     version = "18"
-    modules = listOf("javafx.base", "javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.media", "javafx.swing")
+//    modules = listOf("javafx.base", "javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.media", "javafx.swing")
+    modules = listOf("javafx.base", "javafx.controls", "javafx.media")
     // set compileOnly for crosspackage to avoid packaging host javafx jmods for all target platforms
     configuration = if (project.gradle.startParameter.taskNames.intersect(listOf("crosspackage", "dist")).isNotEmpty()) "compileOnly" else "implementation"
 }
 val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
-    implementation("org.scala-lang:scala-library:2.13.8")
-    implementation("org.scalafx:scalafx_2.13:17.0.1-R26")
-    implementation("javax.mail:javax.mail-api:1.6.2")
-    implementation("com.sun.mail:javax.mail:1.6.2")
-    implementation("com.sun.mail:gimap:1.6.5")
+    implementation("org.scala-lang:scala-library:2.13.10")
+    implementation("org.scalafx:scalafx_2.13:18.0.2-R29")
+    implementation("jakarta.mail:jakarta.mail-api:2.0.1")
+    implementation("com.sun.mail:jakarta.mail:2.0.1")
+    implementation("com.sun.mail:gimap:2.0.1")
     cPlatforms.forEach {platform ->
         val cfg = configurations.create("javafx_$platform")
         org.openjfx.gradle.JavaFXModule.getJavaFXModules(javaFXOptions.modules).forEach { m ->
@@ -147,7 +147,7 @@ open class CrossPackage : DefaultTask() {
                     pf.writeText("""
                         set JLINK_VM_OPTIONS=${project.application.applicationDefaultJvmArgs.joinToString(" ")}
                         set DIR=%~dp0
-                        start "" "%DIR%\bin\javaw" %JLINK_VM_OPTIONS% -classpath "%DIR%/lib/*" ${project.application.mainClassName} 
+                        start "" "%DIR%\bin\javaw" %JLINK_VM_OPTIONS% -classpath "%DIR%/lib/*" ${project.application.mainClass.get()} 
                     """.trimIndent())
                     zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-win.zip"), File(imgdir))
                 }

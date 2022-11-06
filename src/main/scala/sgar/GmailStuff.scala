@@ -22,8 +22,8 @@ import scala.util.control.Breaks._
 import java.io.{FileInputStream, FileOutputStream}
 import java.util.Properties
 
-import javax.mail._
-import javax.mail.internet._
+import jakarta.mail._
+import jakarta.mail.internet._
 import com.sun.mail.gimap._
 import com.sun.mail.iap.Argument
 import com.sun.mail.imap.{IMAPFolder, IMAPMessage}
@@ -162,7 +162,7 @@ object GmailStuff {
         // TODO testing: re-connect for each message, gmail drops connection :-(
 //        if (startns == -1 || (System.nanoTime - startns) / 1e9 > 10 * 60) {
 //          // re-open connection incl auth after 10 minutes... Gmail seems to drop it from time to time.
-          println("----- Re-connect after 10 minutes...")
+          println("----- Re-connect each time...")
           if (store.isConnected) store.close()
           reconnect()
           allmail = store.getFolder("[Gmail]/All Mail").asInstanceOf[IMAPFolder]

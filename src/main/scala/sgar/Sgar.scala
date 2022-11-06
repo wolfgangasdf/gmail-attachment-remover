@@ -18,154 +18,64 @@
 
 package sgar
 
+import scalafx.Includes._
+import scalafx.application.JFXApp3
+import scalafx.beans.property.ReadOnlyStringWrapper
+import scalafx.collections.ObservableBuffer
+import scalafx.concurrent.{Service, WorkerStateEvent}
+import scalafx.event.ActionEvent
+import scalafx.geometry.{Insets, Pos}
+import scalafx.scene.control.Alert.AlertType
+import scalafx.scene.control.Button._
+import scalafx.scene.control.TreeTableColumn._
+import scalafx.scene.control._
+import scalafx.scene.layout.HBox._
+import scalafx.scene.layout._
+import scalafx.scene.paint.Color
+import scalafx.scene.shape.Rectangle
+import scalafx.scene.shape.Rectangle._
+import scalafx.scene.text.Text
+import scalafx.scene.{Group, Scene}
+import scalafx.stage._
 import sgar.GmailStuff.{Bodypart, ToDelete}
 import sgar.Helpers.MyWorker
 
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
-import scalafx.Includes._
-import scalafx.application.JFXApp
-import scalafx.beans.property.ReadOnlyStringWrapper
-import scalafx.collections.ObservableBuffer
-import scalafx.event.ActionEvent
-import scalafx.geometry.{Insets, Pos}
-import scalafx.scene.{Group, Scene}
-import scalafx.scene.control._
-import scalafx.scene.layout._
-import scalafx.stage._
-import scalafx.scene.control.Alert.AlertType
-import HBox._
-import Button._
-import TreeTableColumn._
-import scalafx.concurrent.{Service, WorkerStateEvent}
-import scalafx.scene.shape.Rectangle
-import Rectangle._
-
-import scala.jdk.CollectionConverters._
-import scalafx.scene.paint.Color
-import scalafx.scene.text.Text
 import java.awt.{Desktop, Taskbar}
-import java.io.{File, FileInputStream, FileOutputStream, IOException, PrintStream}
+import java.io._
 import java.net.URI
-import java.util.Date
 import java.util.jar.JarFile
-
+import java.util.{Date, Properties}
 import javax.imageio.ImageIO
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.jdk.CollectionConverters._
 
-
-object Sgar extends JFXApp {
-
-  val props = new java.util.Properties()
+class MainScene(stage: Stage, props: Properties) extends Scene {
 
   val home = "https://github.com/wolfgangasdf/gmail-attachment-remover"
-  val versionInfo = s"SGAR build time: ${getClassBuildTime.toString}"
+  val versionInfo = s"SGAR build time: ${Helpers.getClassBuildTime.toString}"
   val space = 4.0
   var currentAccount: String = _
 
-  // redirect console output, must happen on top of this object!
-  val oldOut: PrintStream = System.out
-  val oldErr: PrintStream = System.err
-  var logps: FileOutputStream = _
-  System.setOut(new PrintStream(new MyConsole(false), true))
-  System.setErr(new PrintStream(new MyConsole(true), true))
-
-  val logfile: File = Helpers.createTempFile("sgar",".txt")
-  logps = new FileOutputStream(logfile)
-
-  System.setProperty("mail.mime.parameters.strict", "false") // allow whitespace in attachment names without quote
-
-  class MyConsole(errchan: Boolean) extends java.io.OutputStream {
-    override def write(b: Int): Unit = {
-      Helpers.runUI { logView.appendText(b.toChar.toString) }
-      if (logps != null) logps.write(b)
-      (if (errchan) oldErr else oldOut).print(b.toChar.toString)
-    }
-  }
-
-  val logView: TextArea = new TextArea {
-    text = "============= Application log ==================== \n"
-  }
-
-  // https://stackoverflow.com/a/22404140
-  import java.net.URISyntaxException
-  def getClassBuildTime: Date = {
-    var d: Date = null
-    val currentClass = new Object() {}.getClass.getEnclosingClass
-    val resource = currentClass.getResource(currentClass.getSimpleName + ".class")
-    if (resource != null) {
-      if (resource.getProtocol.equals("file")) {
-        try {
-          d = new Date(new File(resource.toURI).lastModified)
-        } catch { case _: URISyntaxException => }
-      } else if (resource.getProtocol.equals("jar")) {
-        val path = resource.getPath
-        d = new Date( new File(path.substring(5, path.indexOf("!"))).lastModified )
-      } else if (resource.getProtocol.equals("zip")) {
-        val path = resource.getPath
-        val jarFileOnDisk = new File(path.substring(0, path.indexOf("!")))
-        //long jfodLastModifiedLong = jarFileOnDisk.lastModified ();
-        //Date jfodLasModifiedDate = new Date(jfodLastModifiedLong);
-
-        try{
-          val jf = new JarFile(jarFileOnDisk)
-          val ze = jf.getEntry (path.substring(path.indexOf("!") + 2)) //Skip the ! and the /
-          val zeTimeLong = ze.getTime
-          val zeTimeDate = new Date(zeTimeLong)
-          d = zeTimeDate
-        } catch {
-          case _: IOException =>
-          case _: RuntimeException =>
-        }
-      }
-    }
-    d
-  }
-
-  def getSettingsFile: File = {
-    val fp: String = if (Helpers.isMac) {
-      System.getProperty("user.home") + "/Library/Application Support/Sgar"
-    } else if (Helpers.isLinux) {
-      System.getProperty("user.home") + "/.sgar"
-    } else if (Helpers.isWin) {
-      System.getenv("APPDATA") + File.separator +  "Sgar"
-    } else throw new Exception("operating system not found")
-    new File(fp + File.separator + "sgarsettings.txt")
-  }
-
-  def loadSettings(): Unit = {
-    val ff = getSettingsFile
-    println("load config: settings file = " + ff.getPath)
-    if (ff.exists()) {
-      val fin = new FileInputStream(ff)
-      props.load(fin)
-      fin.close()
-    }
-  }
-
-  def saveSettings(): Unit = {
-    val ff = getSettingsFile
-    println("save config: settings file = " + ff.getPath)
-    if (!ff.getParentFile.exists) ff.getParentFile.mkdirs()
-    val fos = new FileOutputStream(ff)
-    props.store(fos,null)
-    fos.close()
-  }
-
-  def updateAccountsGuiFromProperties(): Unit = {
+  def updateAccountsGuiFromProperties(props: Properties): Unit = {
     val accprop = props.getProperty("accounts", "")
     if (cbaccount.items != null) {
       cbaccount.items.get.clear()
-      if (accprop != "") for (a <- accprop.split(",,,")) { cbaccount.items.get += a }
+      if (accprop != "") for (a <- accprop.split(",,,")) {
+        cbaccount.items.get += a
+      }
       cbaccount.getSelectionModel.selectFirst()
     }
+    cbCaffeinate.selected.value = props.getProperty("caffeinate", "false").toBoolean
   }
 
-  def updateAccountsPropertiesFromGui(): Unit = {
+  def updateAccountsPropertiesFromGui(props: Properties): Unit = {
     props.put("accounts", cbaccount.items.get.mkString(",,,"))
+    props.put("caffeinate", cbCaffeinate.selected.value.toString)
   }
 
-  def updatePropertiesForAccount(): Unit = {
+  def updatePropertiesForAccount(props: Properties): Unit = {
     if (currentAccount != null) {
       props.put(currentAccount + "-backupdir", tfbackupdir.text.value)
       props.put(currentAccount + "-minbytes", tfminbytes.text.value)
@@ -187,7 +97,6 @@ object Sgar extends JFXApp {
       tfpassword.text = props.getProperty(currentAccount + "-password", "")
     }
   }
-
 
   class TreeThing(val toDelete: ToDelete, val bodypart: Bodypart) {
     def getColumn(i: Int): String = {
@@ -217,7 +126,9 @@ object Sgar extends JFXApp {
   }
 
   val btRemoveRows: Button = new Button("Remove selected rows") {
-    tooltip = new Tooltip { text = "... to prevent attachments from being removed"}
+    tooltip = new Tooltip {
+      text = "... to prevent attachments from being removed"
+    }
     onAction = (_: ActionEvent) => {
       tiroot.getChildren.removeAll(ttv.getSelectionModel.getSelectedItems)
     }
@@ -240,10 +151,12 @@ object Sgar extends JFXApp {
   val cbaccount: ChoiceBox[String] = new ChoiceBox[String] {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
-    tooltip = new Tooltip { text = "Gmail email adress" }
+    tooltip = new Tooltip {
+      text = "Gmail email adress"
+    }
     items = new ObservableBuffer[String]()
     value.onChange {
-      updatePropertiesForAccount() // uses old account
+      updatePropertiesForAccount(props) // uses old account
       updateGuiForAccount()
     }
   }
@@ -251,34 +164,48 @@ object Sgar extends JFXApp {
   val tfpassword: PasswordField = new PasswordField {
     prefWidth = 140
     text = ""
-    tooltip = new Tooltip { text = "Password is saved in clear text in settings file." }
+    tooltip = new Tooltip {
+      text = "Password is saved in clear text in settings file."
+    }
   }
 
-
   println(versionInfo)
-  loadSettings()
-  println("Logging to file " + logfile.getPath)
-
+  Sgar.loadSettings()
+  println("Logging to file " + Sgar.logfile.getPath)
 
   val tfbackupdir: TextField = new TextField {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
-    tooltip = new Tooltip { text = "Emails are saved here before attachments are removed" }
+    tooltip = new Tooltip {
+      text = "Emails are saved here before attachments are removed"
+    }
   }
-  val tfminbytes: TextField = new TextField { text =  "" ; tooltip = new Tooltip { text = "Minimum size of attachments for being considered for removal" } }
-  val tflimit: TextField = new TextField { text = "" ; tooltip = new Tooltip { text = "Maximum number of emails to be considered in a single run" } }
+  val tfminbytes: TextField = new TextField {
+    text = ""; tooltip = new Tooltip {
+      text = "Minimum size of attachments for being considered for removal"
+    }
+  }
+  val tflimit: TextField = new TextField {
+    text = ""; tooltip = new Tooltip {
+      text = "Maximum number of emails to be considered in a single run"
+    }
+  }
   val tflabel: TextField = new TextField {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
-    tooltip = new Tooltip { text = "Only consider emails having this label; consider all if empty" }
+    tooltip = new Tooltip {
+      text = "Only consider emails having this label; consider all if empty"
+    }
   }
   val cbCaffeinate = new CheckBox("Run caffeinate")
   val cbgmailsearch: ComboBox[String] = new ComboBox[String] {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
-    tooltip = new Tooltip { text = "mind that ' label:<label>' is appended!" }
+    tooltip = new Tooltip {
+      text = "mind that ' label:<label>' is appended!"
+    }
     val strings: ObservableBuffer[String] = ObservableBuffer("size:1MB has:attachment -in:inbox", "size:1MB has:attachment older_than:12m -in:inbox")
     items = strings
     editable = true
@@ -303,7 +230,7 @@ object Sgar extends JFXApp {
   }
 
   def setupGmail(): Unit = {
-    updatePropertiesForAccount()
+    updatePropertiesForAccount(props)
     GmailStuff.backupdir = new File(tfbackupdir.text.value)
     GmailStuff.username = cbaccount.getValue
     GmailStuff.password = tfpassword.getText
@@ -314,7 +241,9 @@ object Sgar extends JFXApp {
   }
 
   val btFolderList: Button = new Button("Get gmail folder list") {
-    tooltip = new Tooltip { text = "Mainly for debug purposes. Output is shown in log."}
+    tooltip = new Tooltip {
+      text = "Mainly for debug purposes. Output is shown in log."
+    }
     onAction = (_: ActionEvent) => {
       setButtons()
       setupGmail()
@@ -331,7 +260,9 @@ object Sgar extends JFXApp {
   }
 
   val btAbout: Button = new Button("About") {
-    tooltip = new Tooltip { text = s"Open website $home"}
+    tooltip = new Tooltip {
+      text = s"Open website $home"
+    }
     onAction = (_: ActionEvent) => {
       println(versionInfo)
       println(s"Open $home ...")
@@ -349,21 +280,27 @@ object Sgar extends JFXApp {
   // simplest case: check particular x-position, then check for closest y-position without collision with boxes!
   // (let arrows overlap) and/or search afterwards for best arrow connection (in 5px steps, 2D!)
   val btHelp: Button = new Button("Help") {
-    tooltip = new Tooltip { text = "Show all tooltips"}
+    tooltip = new Tooltip {
+      text = "Show all tooltips"
+    }
     onAction = (_: ActionEvent) => {
-      println("XXX: " + Sgar.stage.getScene.getWindow)
+
       def transparentStage: Stage = new Stage() {
         initStyle(StageStyle.Transparent)
         initOwner(Sgar.stage)
         x = Sgar.stage.getX
         y = Sgar.stage.getY + Sgar.stage.getHeight - Sgar.stage.getScene.getHeight // add window title bar height!
         val group: Group = new Group {
-          children.add(new Rectangle { stroke = Color.Red; fill = null; x = 0; y = 0; width = Sgar.stage.getScene.getWidth; height = Sgar.stage.getScene.getHeight})
-          Seq(btGetEmails,btRemoveAttachments,btRemoveRows,btFolderList,btAbout, cbaccount, cbgmailsearch, tflabel).foreach(nn => {
+          children.add(new Rectangle {
+            stroke = Color.Red; fill = null; x = 0; y = 0; width = Sgar.stage.getScene.getWidth; height = Sgar.stage.getScene.getHeight
+          })
+          Seq(btGetEmails, btRemoveAttachments, btRemoveRows, btFolderList, btAbout, cbaccount, cbgmailsearch, tflabel).foreach(nn => {
             val tt = nn.getTooltip
             val xx = nn.localToScene(nn.getLayoutBounds)
             children.add(new Text(xx.getMinX, xx.getMinY, tt.getText))
-            children.add(new Rectangle { x = xx.getMinX; y = xx.getMinY; width = xx.getWidth; height = xx.getHeight})
+            children.add(new Rectangle {
+              x = xx.getMinX; y = xx.getMinY; width = xx.getWidth; height = xx.getHeight
+            })
             println(s"xx=$xx t=${tt.getText}")
           })
         }
@@ -372,6 +309,7 @@ object Sgar extends JFXApp {
         }
         scene = myScene
       }
+
       transparentStage.show()
 
     }
@@ -386,7 +324,9 @@ object Sgar extends JFXApp {
   }
 
   val btGetEmails: Button = new Button("Find emails") {
-    tooltip = new Tooltip { text = "Find emails based on selected criteria"}
+    tooltip = new Tooltip {
+      text = "Find emails based on selected criteria"
+    }
     onAction = (_: ActionEvent) => {
       setButtons()
       setupGmail()
@@ -421,7 +361,9 @@ object Sgar extends JFXApp {
   }
 
   val btRemoveAttachments: Button = new Button("Remove attachments") {
-    tooltip = new Tooltip { text = "Remove all attachments shown in the table below"}
+    tooltip = new Tooltip {
+      text = "Remove all attachments shown in the table below"
+    }
     onAction = (_: ActionEvent) => {
       setButtons()
       setupGmail()
@@ -441,17 +383,23 @@ object Sgar extends JFXApp {
 
       val task = GmailStuff.doDelete(dellist)
       task.onSucceeded = () => {
-        Helpers.runUI { tiroot.children.clear() }
+        Helpers.runUI {
+          tiroot.children.clear()
+        }
         setButtons(flist = true, getemails = true)
         Helpers.caffeinate(false)
       }
       task.onCancelled = () => {
-        Helpers.runUI { tiroot.children.clear() }
+        Helpers.runUI {
+          tiroot.children.clear()
+        }
         setButtons(flist = true, getemails = true)
         Helpers.caffeinate(false)
       }
       task.onFailed = () => {
-        Helpers.runUI { tiroot.children.clear() }
+        Helpers.runUI {
+          tiroot.children.clear()
+        }
         showGmailErrorCleanup(task.getException)
         setButtons(flist = true, getemails = true)
         Helpers.caffeinate(false)
@@ -470,7 +418,9 @@ object Sgar extends JFXApp {
           cbaccount,
           tfpassword,
           new Button("Get app password") {
-            tooltip = new Tooltip { text = "This opens google settings. Select \"Mail\", \"gmail-attachment-remover\", and copy the password here." }
+            tooltip = new Tooltip {
+              text = "This opens google settings. Select \"Mail\", \"gmail-attachment-remover\", and copy the password here."
+            }
             onAction = (_: ActionEvent) => {
               if (Desktop.isDesktopSupported) {
                 val desktop = Desktop.getDesktop
@@ -481,20 +431,24 @@ object Sgar extends JFXApp {
             }
           },
           new Button("Add") {
-            tooltip = new Tooltip { text = "Add a new Gmail account"}
+            tooltip = new Tooltip {
+              text = "Add a new Gmail account"
+            }
             onAction = (_: ActionEvent) => {
               val dialog = new TextInputDialog()
               dialog.setTitle("New account")
               dialog.setHeaderText("Enter gmail address")
               val res = dialog.showAndWait()
-              res.foreach( r => {
+              res.foreach(r => {
                 cbaccount.getItems.add(r)
                 cbaccount.setValue(r)
               })
             }
           },
           new Button("Remove") {
-            tooltip = new Tooltip { text = "Remove the selected Gmail account from the list"}
+            tooltip = new Tooltip {
+              text = "Remove the selected Gmail account from the list"
+            }
             onAction = (_: ActionEvent) => {
               val iter = props.entrySet.iterator
               while (iter.hasNext) {
@@ -509,21 +463,30 @@ object Sgar extends JFXApp {
         )
         setHgrow(cbaccount, Priority.Always)
       },
-      new HBox(space) { alignment = Pos.CenterLeft ; children ++= List( new Label("Backupfolder: "), tfbackupdir, bSelectbackupdir ) },
-      new HBox(space) { alignment = Pos.CenterLeft ; children ++= List( new Label("Gmail label: "), tflabel ) },
-      new HBox(space) { alignment = Pos.CenterLeft ; children ++= List( new Label("Gmail search: "), cbgmailsearch ) },
-      new HBox(space) { alignment = Pos.CenterLeft ; children ++= List(
-        new Label("Minimum Attachment size (bytes): "),
-        tfminbytes,
-        new Label("     Limit # messages: "),
-        tflimit,
-        cbCaffeinate
-      ) },
+      new HBox(space) {
+        alignment = Pos.CenterLeft; children ++= List(new Label("Backupfolder: "), tfbackupdir, bSelectbackupdir)
+      },
+      new HBox(space) {
+        alignment = Pos.CenterLeft; children ++= List(new Label("Gmail label: "), tflabel)
+      },
+      new HBox(space) {
+        alignment = Pos.CenterLeft; children ++= List(new Label("Gmail search: "), cbgmailsearch)
+      },
+      new HBox(space) {
+        alignment = Pos.CenterLeft;
+        children ++= List(
+          new Label("Minimum Attachment size (bytes): "),
+          tfminbytes,
+          new Label("     Limit # messages: "),
+          tflimit,
+          cbCaffeinate
+        )
+      },
       new HBox(space) {
         alignment = Pos.Center
         children += new Button("Quit") {
           onAction = (_: ActionEvent) => {
-            stopApp()
+            Sgar.stopApp()
           }
         }
         children ++= List(btGetEmails, btRemoveAttachments, btFolderList, btAbout, btHelp)
@@ -532,24 +495,102 @@ object Sgar extends JFXApp {
   }
 
   val cont: VBox = new VBox(space) {
-    children ++= List(settingsPane, listPane, logView)
-    padding = Insets(2*space)
+    children ++= List(settingsPane, listPane, Sgar.logView)
+    padding = Insets(2 * space)
   }
 
-  stage = new JFXApp.PrimaryStage {
-    title.value = "Gmail Attachment Remover"
-    width = 1000
-    height = 750
-    scene = new Scene {
-      stylesheets = List(getClass.getResource("/main.css").toExternalForm)
-      root = cont
+  stylesheets = List(getClass.getResource("/main.css").toExternalForm)
+
+  content = cont
+  cont.prefHeight <== this.height
+  cont.prefWidth <== this.width
+}
+
+object Sgar extends JFXApp3 {
+
+  val props = new java.util.Properties()
+  var mainScene: MainScene = _
+
+  val logfile: File = Helpers.createTempFile("sgar",".txt")
+  val logps: FileOutputStream = new FileOutputStream(logfile)
+
+  System.setProperty("mail.mime.parameters.strict", "false") // allow whitespace in attachment names without quote
+
+  lazy val logView: TextArea = new TextArea {
+    text = "============= Application log ==================== \n"
+  }
+
+  // JFXApp3: UI init stuff must go into this!
+  override def start(): Unit = {
+
+    // redirect console output, must happen on top of this object!
+    val oldOut: PrintStream = System.out
+    val oldErr: PrintStream = System.err
+    System.setOut(new PrintStream(new MyConsole(false), true))
+    System.setErr(new PrintStream(new MyConsole(true), true))
+
+    class MyConsole(errchan: Boolean) extends java.io.OutputStream {
+      override def write(b: Int): Unit = {
+        Helpers.runUI {
+          if (mainScene != null) logView.appendText(b.toChar.toString)
+        }
+        if (logps != null) logps.write(b)
+        (if (errchan) oldErr else oldOut).print(b.toChar.toString)
+      }
+    }
+
+    // Dock icon (do this here, otherwise stopApp() doesn't work)
+    if (Helpers.isMac) Taskbar.getTaskbar.setIconImage(ImageIO.read(getClass.getResource("/icon-128.png")))
+
+    stage = new JFXApp3.PrimaryStage {
+      title.value = "Gmail Attachment Remover"
+      width = 1000
+      height = 750
+      mainScene = new MainScene(this, props)
+      scene = mainScene
+    }
+
+    // init
+    mainScene.setButtons(flist = true, getemails = true)
+    mainScene.updateAccountsGuiFromProperties(props)
+  }
+
+  def getSettingsFile: File = {
+    val fp: String = if (Helpers.isMac) {
+      System.getProperty("user.home") + "/Library/Application Support/Sgar"
+    } else if (Helpers.isLinux) {
+      System.getProperty("user.home") + "/.sgar"
+    } else if (Helpers.isWin) {
+      System.getenv("APPDATA") + File.separator +  "Sgar"
+    } else throw new Exception("operating system not found")
+    new File(fp + File.separator + "sgarsettings.txt")
+  }
+
+  def loadSettings(): Unit = {
+    val ff = getSettingsFile
+    println("load config: settings file = " + ff.getPath)
+    if (ff.exists()) {
+      val fin = new FileInputStream(ff)
+      props.load(fin)
+      fin.close()
     }
   }
 
+  def saveSettings(): Unit = {
+    val ff = getSettingsFile
+    println("save config: settings file = " + ff.getPath)
+    if (!ff.getParentFile.exists) ff.getParentFile.mkdirs()
+    val fos = new FileOutputStream(ff)
+    props.store(fos,null)
+    fos.close()
+  }
+
+  // TODO why not called?
   override def stopApp(): Unit = {
+    println("*** stopapp")
     GmailStuff.cleanup()
-    updatePropertiesForAccount()
-    updateAccountsPropertiesFromGui()
+    mainScene.updatePropertiesForAccount(props)
+    mainScene.updateAccountsPropertiesFromGui(props)
     saveSettings()
     Helpers.caffeinate(false)
     if (logps != null) logps.close()
@@ -560,13 +601,6 @@ object Sgar extends JFXApp {
   sys.addShutdownHook({
     Helpers.caffeinate(false)
   })
-
-  // Dock icon
-  if (Helpers.isMac) Taskbar.getTaskbar.setIconImage(ImageIO.read(getClass.getResource("/icon-128.png")))
-
-  // init
-  setButtons(flist = true, getemails = true)
-  updateAccountsGuiFromProperties()
 
 }
 
@@ -592,7 +626,7 @@ object Helpers {
 
   private var caffProc: Process = _
   def caffeinate(doit: Boolean): Unit = {
-    if (Sgar.cbCaffeinate.selected.getValue) {
+    if (Sgar.mainScene.cbCaffeinate.selected.getValue) {
       if (isMac) {
         println(s"caffeinate ($doit)...")
         if (doit) {
@@ -638,6 +672,44 @@ object Helpers {
       }
       worker.start()
     }
+  }
+
+  import java.net.URISyntaxException
+
+  // https://stackoverflow.com/a/22404140
+  def getClassBuildTime: Date = {
+    var d: Date = null
+    val currentClass = new Object() {}.getClass.getEnclosingClass
+    val resource = currentClass.getResource(currentClass.getSimpleName + ".class")
+    if (resource != null) {
+      if (resource.getProtocol.equals("file")) {
+        try {
+          d = new Date(new File(resource.toURI).lastModified)
+        } catch {
+          case _: URISyntaxException =>
+        }
+      } else if (resource.getProtocol.equals("jar")) {
+        val path = resource.getPath
+        d = new Date(new File(path.substring(5, path.indexOf("!"))).lastModified)
+      } else if (resource.getProtocol.equals("zip")) {
+        val path = resource.getPath
+        val jarFileOnDisk = new File(path.substring(0, path.indexOf("!")))
+        //long jfodLastModifiedLong = jarFileOnDisk.lastModified ();
+        //Date jfodLasModifiedDate = new Date(jfodLastModifiedLong);
+
+        try {
+          val jf = new JarFile(jarFileOnDisk)
+          val ze = jf.getEntry(path.substring(path.indexOf("!") + 2)) //Skip the ! and the /
+          val zeTimeLong = ze.getTime
+          val zeTimeDate = new Date(zeTimeLong)
+          d = zeTimeDate
+        } catch {
+          case _: IOException =>
+          case _: RuntimeException =>
+        }
+      }
+    }
+    d
   }
 
 }
