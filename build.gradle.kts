@@ -1,6 +1,7 @@
 
 import org.gradle.kotlin.dsl.support.zipTo
 import org.openjfx.gradle.JavaFXOptions
+import java.util.*
 
 buildscript {
     repositories {
@@ -21,9 +22,9 @@ plugins {
     scala
     id("idea")
     application
-    id("com.github.ben-manes.versions") version "0.43.0"
+    id("com.github.ben-manes.versions") version "0.44.0"
     id("org.openjfx.javafxplugin") version "0.0.13"
-    id("org.beryx.runtime") version "1.12.7"
+    id("org.beryx.runtime") version "1.13.0"
 }
 
 application {
@@ -40,15 +41,17 @@ javafx {
 //    modules = listOf("javafx.base", "javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.media", "javafx.swing")
     modules = listOf("javafx.base", "javafx.controls", "javafx.media")
     // set compileOnly for crosspackage to avoid packaging host javafx jmods for all target platforms
-    configuration = if (project.gradle.startParameter.taskNames.intersect(listOf("crosspackage", "dist")).isNotEmpty()) "compileOnly" else "implementation"
+    if (project.gradle.startParameter.taskNames.intersect(listOf("crosspackage", "dist")).isNotEmpty()) {
+        configuration = "compileOnly"
+    }
 }
 val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
     implementation("org.scala-lang:scala-library:2.13.10")
     implementation("org.scalafx:scalafx_2.13:18.0.2-R29")
-    implementation("jakarta.mail:jakarta.mail-api:2.0.1")
-    implementation("com.sun.mail:jakarta.mail:2.0.1")
+    implementation("jakarta.mail:jakarta.mail-api:2.1.1")
+    implementation("org.eclipse.angus:angus-mail:2.0.1")
     implementation("com.sun.mail:gimap:2.0.1")
     cPlatforms.forEach {platform ->
         val cfg = configurations.create("javafx_$platform")
@@ -192,4 +195,17 @@ task("dist") {
         project.delete(project.runtime.imageDir.get(), project.runtime.jreDir.get(), "${project.buildDir.path}/install")
         println("Created zips in build/crosspackage")
     }
+}
+
+fun isNonStable(version: String): Boolean {
+    val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { version.uppercase(Locale.getDefault()).contains(it) }
+    val regex = "^[0-9,.v-]+(-r)?$".toRegex()
+    val isStable = stableKeyword || regex.matches(version)
+    return isStable.not()
+}
+tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask> {
+    rejectVersionIf {
+        isNonStable(candidate.version)
+    }
+    gradleReleaseChannel = "current"
 }
