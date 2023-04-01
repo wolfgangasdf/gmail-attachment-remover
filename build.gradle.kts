@@ -12,9 +12,9 @@ buildscript {
 group = "com.sgar"
 version = "1.0-SNAPSHOT"
 val cPlatforms = listOf("mac", "linux", "win") // compile for these platforms. "mac", "linux", "win"
-val minJavaVersion = 18
+val javaVersion = 19
 println("Current Java version: ${JavaVersion.current()}")
-if (JavaVersion.current().majorVersion.toInt() < minJavaVersion) throw GradleException("Use Java >= $minJavaVersion")
+if (JavaVersion.current().majorVersion.toInt() != javaVersion) throw GradleException("Use Java $javaVersion")
 
 println("Current Java version: ${JavaVersion.current()}")
 
@@ -37,7 +37,7 @@ repositories {
 }
 
 javafx {
-    version = "18"
+    version = "$javaVersion"
 //    modules = listOf("javafx.base", "javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.media", "javafx.swing")
     modules = listOf("javafx.base", "javafx.controls", "javafx.media")
     // set compileOnly for crosspackage to avoid packaging host javafx jmods for all target platforms
@@ -49,7 +49,7 @@ val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
     implementation("org.scala-lang:scala-library:2.13.10")
-    implementation("org.scalafx:scalafx_2.13:18.0.2-R29")
+    implementation("org.scalafx:scalafx_2.13:19.0.0-R30")
     implementation("jakarta.mail:jakarta.mail-api:2.1.1")
     implementation("org.eclipse.angus:angus-mail:2.0.1")
     implementation("com.sun.mail:gimap:2.0.1")
@@ -66,9 +66,34 @@ runtime {
     // check "gradle suggestModules", and add jdk.crypto.ec for ssl handshake
     modules.set(listOf("java.desktop", "jdk.unsupported", "jdk.jfr", "java.logging", "java.xml", "java.security.sasl", "java.datatransfer",
             "jdk.crypto.ec"))
-    if (cPlatforms.contains("mac")) targetPlatform("mac", System.getenv("JDK_MAC_HOME"))
-    if (cPlatforms.contains("win")) targetPlatform("win", System.getenv("JDK_WIN_HOME"))
-    if (cPlatforms.contains("linux")) targetPlatform("linux", System.getenv("JDK_LINUX_HOME"))
+
+    // sets targetPlatform JDK for host os from toolchain, for others (cross-package) from adoptium / jdkDownload
+    // https://github.com/beryx/badass-runtime-plugin/issues/99
+    // if https://github.com/gradle/gradle/issues/18817 is solved: use toolchain
+    fun setTargetPlatform(jfxplatformname: String) {
+        val platf = if (jfxplatformname == "win") "windows" else jfxplatformname // jfx expects "win" but adoptium needs "windows"
+        val os = org.gradle.internal.os.OperatingSystem.current()
+        val oss = if (os.isLinux) "linux" else if (os.isWindows) "windows" else if (os.isMacOsX) "mac" else ""
+        if (oss == "") throw GradleException("unsupported os")
+        if (oss == platf) {
+            targetPlatform(jfxplatformname, javaToolchains.launcherFor(java.toolchain).get().executablePath.asFile.parentFile.parentFile.absolutePath)
+        } else { // https://api.adoptium.net/q/swagger-ui/#/Binary/getBinary
+            targetPlatform(jfxplatformname) {
+                val ddir = "${if (os.isWindows) "c:/" else "/"}tmp/jdk$javaVersion-$platf"
+                println("downloading jdks to or using jdk from $ddir, delete folder to update jdk!")
+                @Suppress("INACCESSIBLE_TYPE")
+                setJdkHome(
+                    jdkDownload("https://api.adoptium.net/v3/binary/latest/$javaVersion/ga/$platf/x64/jdk/hotspot/normal/eclipse?project=jdk",
+                        closureOf<org.beryx.runtime.util.JdkUtil.JdkDownloadOptions> {
+                            downloadDir = ddir // put jdks here so different projects can use them!
+                            archiveExtension = if (platf == "windows") "zip" else "tar.gz"
+                        }
+                    )
+                )
+            }
+        }
+    }
+    cPlatforms.forEach { setTargetPlatform(it) }
 }
 
 open class CrossPackage : DefaultTask() {
