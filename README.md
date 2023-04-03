@@ -4,8 +4,9 @@ This is an app that connects to your Gmail account via imap and removes selected
 
 * Before removing an attachment, a local full backup of the raw email is saved. But you should save your important attachments manually before!
 * The removed attachment is replaced by a text-file attachment containing the original attachment filename and size.
+* It is super slow, gmail is throttling API access.
 
-2021: Finally, someone has made a more complete app with a very similar design, I haven't tested or checked it but it looks nice: https://github.com/ilovefreesw/unattach
+2021: Finally, someone has made a more complete app with a very similar design, I haven't tested it: https://github.com/ilovefreesw/unattach. Update 2023: now it's a webapp.
 
 ## Tutorial
 
@@ -23,6 +24,7 @@ On your computer:
     * Select a folder for mail backups.
     * `limit`: select a maximum number of emails processed, e.g., 100. After this you can check the emails if everything is fine, further the process might take very long and google might interrupt the connection from time to time.
     * `label`: Gmail message label to be searched for, e.g. `removeattachments`. It is removed after attachment removal (doesn't work in conversation view, see above). If empty, this is ignored.
+    * You can also give custom names for the "All Mail" and "Trash" folders - check the error log if the defaults don't work (e.g., other languages).
     * `gmail search`: use a "RAW Gmail search term" to pre-filter emails. See the examples in the drop-down list and [here](https://support.google.com/mail/answer/7190?hl=en) for information.
         `size:1MB has:attachment older_than:12m -in:inbox` is a good choice: mails that are small, in the inbox, within the last 12 month, or without attachment, are skipped.
     * `minimum Attachment size`: Select a minimum size above which attachments will be considered. Important for multiple attachments in mails!
@@ -30,7 +32,7 @@ On your computer:
 * Click `Find emails`. The table will contain emails matching the criteria.
 * Check the table and remove rows from the table if they should not be processed.
 * Click `Remove attachments` to start the removal procedure.
-    * This might take very long because the full messages are downloaded for backup, and Gmail limits bandwidth (~500 kB/s)!
+    * This might take very long because the full messages are downloaded for backup, and Gmail limits the bandwidth!
 
 
 ## Is it safe to use?
@@ -42,20 +44,18 @@ On your computer:
     * In the worst case you have lost the labels of one email, more likely is to have an additional email, but in most cases nothing happens, just start over.
     * You always have a downloaded backup of the email.
 * Probably, you should always have a backup your Gmail account with, e.g., [gmvault](http://gmvault.org); however, mind that this is not incremental.
-* Of course I cannot take any responsibility for anything.
+* Of course, I cannot take any responsibility for anything.
 
 
 ## How to develop, compile & package
 
-* Get Java 14 from https://jdk.java.net
+* Get Java from https://jdk.java.net
 * Clone the repository
 * I use the free community version of [IntelliJ IDEA](https://www.jetbrains.com/idea/download/) with the scala
 plugin for development, just open the project to get started.
 
 Packaging:
 
-* Download JDKs for the other platforms (and/or adapt `cPlatforms` in `build.gradle.kts`), extract them and set the environment variables to it:
-  * `export JDK_MAC_HOME=...`, `export JDK_WIN_HOME=...`, `export JDK_LINUX_HOME=...`
 * Package for all platforms: `./gradlew clean dist`. The resulting files are in `build/crosspackage`
 
 
@@ -72,5 +72,4 @@ Packaging:
 * IMAP message flags are preserved.
 * Gmail message labels are preserved. If the `label` tag (see above) exists, it is removed after attachment removal (doesn't work for conversation view).
 * The processed mails get a new message-ID, which doesn't matter.
-* On mac, the computer doesn't sleep during "Find emails" and "Remove attachments"
 * License: GPL

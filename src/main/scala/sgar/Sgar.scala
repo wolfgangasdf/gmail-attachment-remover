@@ -81,6 +81,8 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       props.put(currentAccount + "-minbytes", tfminbytes.text.value)
       props.put(currentAccount + "-limit", tflimit.text.value)
       props.put(currentAccount + "-label", tflabel.text.value)
+      props.put(currentAccount + "-allmailfolder", tfallmailfolder.text.value)
+      props.put(currentAccount + "-trashfolder", tftrashfolder.text.value)
       props.put(currentAccount + "-gmailsearch", cbgmailsearch.getValue)
       props.put(currentAccount + "-password", tfpassword.getText)
     }
@@ -93,6 +95,8 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       tfminbytes.text = props.getProperty(currentAccount + "-minbytes", "10000")
       tflimit.text = props.getProperty(currentAccount + "-limit", "10")
       tflabel.text = props.getProperty(currentAccount + "-label", "removeattachments")
+      tfallmailfolder.text = props.getProperty(currentAccount + "-allmailfolder", "All Mail")
+      tftrashfolder.text = props.getProperty(currentAccount + "-trashfolder", "Trash")
       cbgmailsearch.setValue(props.getProperty(currentAccount + "-gmailsearch", "???")) // don't use value = !
       tfpassword.text = props.getProperty(currentAccount + "-password", "")
     }
@@ -199,6 +203,22 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       text = "Only consider emails having this label; consider all if empty"
     }
   }
+  val tfallmailfolder: TextField = new TextField {
+    hgrow = Priority.Always
+    maxWidth = Double.MaxValue
+    text = ""
+    tooltip = new Tooltip {
+      text = "Gmail's \"All Mail\" folder name (change for other languages)"
+    }
+  }
+  val tftrashfolder: TextField = new TextField {
+    hgrow = Priority.Always
+    maxWidth = Double.MaxValue
+    text = ""
+    tooltip = new Tooltip {
+      text = "Gmail's \"Trash\" folder name (change for other languages)"
+    }
+  }
   val cbCaffeinate = new CheckBox("Run caffeinate")
   val cbgmailsearch: ComboBox[String] = new ComboBox[String] {
     hgrow = Priority.Always
@@ -235,6 +255,8 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     GmailStuff.username = cbaccount.getValue
     GmailStuff.password = tfpassword.getText
     GmailStuff.label = tflabel.text.value
+    GmailStuff.allmailfolder = tfallmailfolder.text.value
+    GmailStuff.trashfolder = tftrashfolder.text.value
     GmailStuff.gmailsearch = cbgmailsearch.getValue
     GmailStuff.minbytes = tfminbytes.text.value.toInt
     GmailStuff.limit = tflimit.text.value.toInt
@@ -294,7 +316,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
           children.add(new Rectangle {
             stroke = Color.Red; fill = null; x = 0; y = 0; width = Sgar.stage.getScene.getWidth; height = Sgar.stage.getScene.getHeight
           })
-          Seq(btGetEmails, btRemoveAttachments, btRemoveRows, btFolderList, btAbout, cbaccount, cbgmailsearch, tflabel).foreach(nn => {
+          Seq(btGetEmails, btRemoveAttachments, btRemoveRows, btFolderList, btAbout, cbaccount, cbgmailsearch, tflabel, tfallmailfolder, tftrashfolder).foreach(nn => {
             val tt = nn.getTooltip
             val xx = nn.localToScene(nn.getLayoutBounds)
             children.add(new Text(xx.getMinX, xx.getMinY, tt.getText))
@@ -467,7 +489,11 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
         alignment = Pos.CenterLeft; children ++= List(new Label("Backupfolder: "), tfbackupdir, bSelectbackupdir)
       },
       new HBox(space) {
-        alignment = Pos.CenterLeft; children ++= List(new Label("Gmail label: "), tflabel)
+        alignment = Pos.CenterLeft
+        children ++= List(
+          new Label("Gmail label: "), tflabel,
+          new Label("\"All mail\" folder: "), tfallmailfolder,
+          new Label("\"Trash\" folder: "), tftrashfolder)
       },
       new HBox(space) {
         alignment = Pos.CenterLeft; children ++= List(new Label("Gmail search: "), cbgmailsearch)
