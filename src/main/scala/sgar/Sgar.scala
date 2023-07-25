@@ -53,10 +53,10 @@ import scala.jdk.CollectionConverters._
 
 class MainScene(stage: Stage, props: Properties) extends Scene {
 
-  val home = "https://github.com/wolfgangasdf/gmail-attachment-remover"
-  val versionInfo = s"SGAR build time: ${Helpers.getClassBuildTime.toString}"
-  val space = 4.0
-  var currentAccount: String = _
+  private val home = "https://github.com/wolfgangasdf/gmail-attachment-remover"
+  private val versionInfo = s"SGAR build time: ${Helpers.getClassBuildTime.toString}"
+  private val space = 4.0
+  private var currentAccount: String = _
 
   def updateAccountsGuiFromProperties(props: Properties): Unit = {
     val accprop = props.getProperty("accounts", "")
@@ -65,18 +65,20 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       if (accprop != "") for (a <- accprop.split(",,,")) {
         cbaccount.items.get += a
       }
-      cbaccount.getSelectionModel.selectFirst()
+      cbaccount.getSelectionModel.select(props.getProperty("lastaccount", "0").toInt)
     }
     cbCaffeinate.selected.value = props.getProperty("caffeinate", "false").toBoolean
   }
 
   def updateAccountsPropertiesFromGui(props: Properties): Unit = {
     props.put("accounts", cbaccount.items.get.mkString(",,,"))
+    props.put("lastaccount", cbaccount.getSelectionModel.getSelectedIndex.toString)
     props.put("caffeinate", cbCaffeinate.selected.value.toString)
   }
 
   def updatePropertiesForAccount(props: Properties): Unit = {
     if (currentAccount != null) {
+      props.put(currentAccount + "-dobackup", cbDobackup.selected.value.toString)
       props.put(currentAccount + "-backupdir", tfbackupdir.text.value)
       props.put(currentAccount + "-minbytes", tfminbytes.text.value)
       props.put(currentAccount + "-limit", tflimit.text.value)
@@ -88,9 +90,10 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  def updateGuiForAccount(): Unit = {
+  private def updateGuiForAccount(): Unit = {
     currentAccount = cbaccount.getValue
     if (currentAccount != null) {
+      cbDobackup.selected.value = java.lang.Boolean.parseBoolean(props.getProperty(currentAccount + "-dobackup", "true"))
       tfbackupdir.text = props.getProperty(currentAccount + "-backupdir", "???")
       tfminbytes.text = props.getProperty(currentAccount + "-minbytes", "10000")
       tflimit.text = props.getProperty(currentAccount + "-limit", "10")
@@ -112,10 +115,10 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  val tiroot = new TreeItem[TreeThing](new TreeThing(null, null))
+  private val tiroot = new TreeItem[TreeThing](new TreeThing(null, null))
   tiroot.setExpanded(true)
 
-  val ttv: TreeTableView[TreeThing] = new TreeTableView[TreeThing] {
+  private val ttv: TreeTableView[TreeThing] = new TreeTableView[TreeThing] {
     vgrow = Priority.Always
     columnResizePolicy = TreeTableView.ConstrainedResizePolicy
     val colheaders = List("Gmail ID/Attachment #", "Subject/Filename", "Date/Size", "Sender/Type")
@@ -129,16 +132,22 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     showRoot = false
   }
 
-  val btRemoveRows: Button = new Button("Remove selected rows") {
+  private val btRemoveRows: Button = new Button("Remove selected rows") {
     tooltip = new Tooltip {
       text = "... to prevent attachments from being removed"
     }
     onAction = (_: ActionEvent) => {
-      tiroot.getChildren.removeAll(ttv.getSelectionModel.getSelectedItems)
+      for (it <- ttv.getSelectionModel.getSelectedItems) {
+        if (it.getValue.bodypart == null) { // whole message
+          tiroot.getChildren.remove(it)
+        } else { // just one attachment
+          it.getParent.getChildren.remove(it)
+        }
+      }
     }
   }
 
-  val listPane: VBox = new VBox(space) {
+  private val listPane: VBox = new VBox(space) {
     vgrow = Priority.Always
     maxHeight = Double.MaxValue
     fillWidth = true
@@ -152,7 +161,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     )
   }
 
-  val cbaccount: ChoiceBox[String] = new ChoiceBox[String] {
+  private val cbaccount: ChoiceBox[String] = new ChoiceBox[String] {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     tooltip = new Tooltip {
@@ -165,7 +174,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  val tfpassword: PasswordField = new PasswordField {
+  private val tfpassword: PasswordField = new PasswordField {
     prefWidth = 140
     text = ""
     tooltip = new Tooltip {
@@ -177,7 +186,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
   Sgar.loadSettings()
   println("Logging to file " + Sgar.logfile.getPath)
 
-  val tfbackupdir: TextField = new TextField {
+  private val tfbackupdir: TextField = new TextField {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
@@ -185,17 +194,17 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       text = "Emails are saved here before attachments are removed"
     }
   }
-  val tfminbytes: TextField = new TextField {
+  private val tfminbytes: TextField = new TextField {
     text = ""; tooltip = new Tooltip {
       text = "Minimum size of attachments for being considered for removal"
     }
   }
-  val tflimit: TextField = new TextField {
+  private val tflimit: TextField = new TextField {
     text = ""; tooltip = new Tooltip {
       text = "Maximum number of emails to be considered in a single run"
     }
   }
-  val tflabel: TextField = new TextField {
+  private val tflabel: TextField = new TextField {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
@@ -203,7 +212,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       text = "Only consider emails having this label; consider all if empty"
     }
   }
-  val tfallmailfolder: TextField = new TextField {
+  private val tfallmailfolder: TextField = new TextField {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
@@ -211,7 +220,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       text = "Gmail's \"All Mail\" folder name (change for other languages)"
     }
   }
-  val tftrashfolder: TextField = new TextField {
+  private val tftrashfolder: TextField = new TextField {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     text = ""
@@ -220,7 +229,8 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
   val cbCaffeinate = new CheckBox("Run caffeinate")
-  val cbgmailsearch: ComboBox[String] = new ComboBox[String] {
+  private val cbDobackup = new CheckBox("Backup message (slow)")
+  private val cbgmailsearch: ComboBox[String] = new ComboBox[String] {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
     tooltip = new Tooltip {
@@ -231,7 +241,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     editable = true
   }
 
-  val bSelectbackupdir: Button = new Button("Select...") {
+  private val bSelectbackupdir: Button = new Button("Select...") {
     onAction = (_: ActionEvent) => {
       val fcbackupdir = new DirectoryChooser {
         title = "Pick backup folder..."
@@ -249,9 +259,10 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  def setupGmail(): Unit = {
+  private def setupGmail(): Unit = {
     updatePropertiesForAccount(props)
     GmailStuff.backupdir = new File(tfbackupdir.text.value)
+    GmailStuff.doBackup = cbDobackup.selected.value
     GmailStuff.username = cbaccount.getValue
     GmailStuff.password = tfpassword.getText
     GmailStuff.label = tflabel.text.value
@@ -262,7 +273,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     GmailStuff.limit = tflimit.text.value.toInt
   }
 
-  val btFolderList: Button = new Button("Get gmail folder list") {
+  private val btFolderList: Button = new Button("Get gmail folder list") {
     tooltip = new Tooltip {
       text = "Mainly for debug purposes. Output is shown in log."
     }
@@ -281,7 +292,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  val btAbout: Button = new Button("About") {
+  private val btAbout: Button = new Button("About") {
     tooltip = new Tooltip {
       text = s"Open website $home"
     }
@@ -301,7 +312,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
   // would be nice but is not trivial. unfortunately tooltips don't do that automatically & don't have an arrow.
   // simplest case: check particular x-position, then check for closest y-position without collision with boxes!
   // (let arrows overlap) and/or search afterwards for best arrow connection (in 5px steps, 2D!)
-  val btHelp: Button = new Button("Help") {
+  private val btHelp: Button = new Button("Help") {
     tooltip = new Tooltip {
       text = "Show all tooltips"
     }
@@ -337,7 +348,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  def showGmailErrorCleanup(e: Throwable): Unit = {
+  private def showGmailErrorCleanup(e: Throwable): Unit = {
     println("Exception " + e.getMessage)
     e.printStackTrace()
     Helpers.runUI {
@@ -345,7 +356,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  val btGetEmails: Button = new Button("Find emails") {
+  private val btGetEmails: Button = new Button("Find emails") {
     tooltip = new Tooltip {
       text = "Find emails based on selected criteria"
     }
@@ -382,7 +393,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  val btRemoveAttachments: Button = new Button("Remove attachments") {
+  private val btRemoveAttachments: Button = new Button("Remove attachments") {
     tooltip = new Tooltip {
       text = "Remove all attachments shown in the table below"
     }
@@ -431,7 +442,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  val settingsPane: VBox = new VBox(space) {
+  private val settingsPane: VBox = new VBox(space) {
     children ++= List(
       new HBox(space) {
         alignment = Pos.CenterLeft
@@ -486,7 +497,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
         setHgrow(cbaccount, Priority.Always)
       },
       new HBox(space) {
-        alignment = Pos.CenterLeft; children ++= List(new Label("Backupfolder: "), tfbackupdir, bSelectbackupdir)
+        alignment = Pos.CenterLeft; children ++= List(cbDobackup, new Label("Backupfolder: "), tfbackupdir, bSelectbackupdir)
       },
       new HBox(space) {
         alignment = Pos.CenterLeft
@@ -520,7 +531,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     )
   }
 
-  val cont: VBox = new VBox(space) {
+  private val cont: VBox = new VBox(space) {
     children ++= List(settingsPane, listPane, Sgar.logView)
     padding = Insets(2 * space)
   }
@@ -538,7 +549,7 @@ object Sgar extends JFXApp3 {
   var mainScene: MainScene = _
 
   val logfile: File = Helpers.createTempFile("sgar",".txt")
-  val logps: FileOutputStream = new FileOutputStream(logfile)
+  private val logps: FileOutputStream = new FileOutputStream(logfile)
 
   System.setProperty("mail.mime.parameters.strict", "false") // allow whitespace in attachment names without quote
 
@@ -581,7 +592,7 @@ object Sgar extends JFXApp3 {
     mainScene.updateAccountsGuiFromProperties(props)
   }
 
-  def getSettingsFile: File = {
+  private def getSettingsFile: File = {
     val fp: String = if (Helpers.isMac) {
       System.getProperty("user.home") + "/Library/Application Support/Sgar"
     } else if (Helpers.isLinux) {
@@ -602,7 +613,7 @@ object Sgar extends JFXApp3 {
     }
   }
 
-  def saveSettings(): Unit = {
+  private def saveSettings(): Unit = {
     val ff = getSettingsFile
     println("save config: settings file = " + ff.getPath)
     if (!ff.getParentFile.exists) ff.getParentFile.mkdirs()
@@ -670,12 +681,12 @@ object Helpers {
 
   // https://github.com/scalafx/ProScalaFX/blob/master/src/proscalafx/ch06/ServiceExample.scala
   class MyWorker[T](atitle: String, atask: javafx.concurrent.Task[T]) {
-    object worker extends Service[T](new javafx.concurrent.Service[T]() {
+    private object worker extends Service[T](new javafx.concurrent.Service[T]() {
       override def createTask(): javafx.concurrent.Task[T] = atask
     })
     val lab = new Label("")
-    val progress: ProgressBar = new ProgressBar { minWidth = 250 }
-    val al: Dialog[Unit] = new Dialog[Unit] {
+    private val progress: ProgressBar = new ProgressBar { minWidth = 250 }
+    private val al: Dialog[Unit] = new Dialog[Unit] {
       initOwner(Sgar.stage)
       title = atitle
       dialogPane.value.content = new VBox { children ++= Seq(lab, progress) }

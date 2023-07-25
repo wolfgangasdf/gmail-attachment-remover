@@ -21,7 +21,6 @@ import scala.collection.mutable.ListBuffer
 import scala.util.control.Breaks._
 import java.io.{FileInputStream, FileOutputStream}
 import java.util.Properties
-
 import jakarta.mail._
 import jakarta.mail.internet._
 import com.sun.mail.gimap._
@@ -42,11 +41,12 @@ object GmailStuff {
   var label = ""
   var allmailfolder = ""
   var trashfolder = ""
+  var doBackup = false
 
   var store: Store = _
-  var session: Session = _
+  private var session: Session = _
 
-  def heads(s: String, len: Int): String = if (s != null) s.substring(0, math.min(len, s.length)) else ""
+  private def heads(s: String, len: Int): String = if (s != null) s.substring(0, math.min(len, s.length)) else ""
 
   class Bodypart(val bpi: Int, val filename: String, val filesize: Int, val contentType: String)
 
@@ -153,6 +153,7 @@ object GmailStuff {
       var startns: Long = -1
       var allmail: IMAPFolder = null
       var trash: IMAPFolder = null
+      if (dellist.isEmpty) return
       println("deleting attachments of " + dellist.length + " emails...")
       var count = 0
       for (todel <- dellist) {
@@ -181,37 +182,79 @@ object GmailStuff {
         val oldlabels = msg.asInstanceOf[GmailMessage].getLabels.toBuffer[String]
         val oldflags = msg.getFlags
 
-        println("backup message...")
-        val backupfile = new java.io.File(backupdir, todel.gmid.toString + ".msg")
-        println("  backupfile=" + backupfile.getPath)
-        val parent = backupfile.getParentFile
-        if (parent != null)
-          if (!parent.exists())
-            parent.mkdirs()
-        val os = new FileOutputStream(backupfile)
-        msg.writeTo(os)
-        os.close()
+        val newmsg = if (doBackup) { // with backup, slow since whole message is downloaded
+          println("backup message...")
+          val backupfile = new java.io.File(backupdir, todel.gmid.toString + ".msg")
+          println("  backupfile=" + backupfile.getPath)
+          val parent = backupfile.getParentFile
+          if (parent != null)
+            if (!parent.exists())
+              parent.mkdirs()
+          val os = new FileOutputStream(backupfile)
+          msg.writeTo(os)
+          os.close()
 
-        println("re-creating message...")
-        val is = new FileInputStream(backupfile)
-        val newmsg = new MimeMessage(session, is)
-        is.close()
+          println("re-creating message...")
+          val is = new FileInputStream(backupfile)
+          val newmsg = new MimeMessage(session, is)
+          is.close()
 
-        println("remove attachments...")
-        val mmpm = newmsg.getContent.asInstanceOf[MimeMultipart]
-        // do in reverse order!
-        for (bpdel <- todel.bodyparts.reverse) mmpm.removeBodyPart(bpdel.bpi)
-        // re-add as empty attachment
-        for (bpdel <- todel.bodyparts) {
-          val nbp = new MimeBodyPart()
-          nbp.setHeader("Content-Type", "text/plain")
-          nbp.setFileName(bpdel.filename + ".txt")
-          nbp.setText("Removed attachment <" + bpdel.filename + "> of size <" + bpdel.filesize + ">")
-          mmpm.addBodyPart(nbp)
+          println("remove attachments...")
+          val mmpm = newmsg.getContent.asInstanceOf[MimeMultipart]
+          // do in reverse order!
+          for (bpdel <- todel.bodyparts.reverse) mmpm.removeBodyPart(bpdel.bpi)
+          // re-add as empty attachment
+          for (bpdel <- todel.bodyparts) {
+            val nbp = new MimeBodyPart()
+            nbp.setHeader("Content-Type", "text/plain")
+            nbp.setFileName(bpdel.filename + ".txt")
+            nbp.setText("Removed attachment <" + bpdel.filename + "> of size <" + bpdel.filesize + ">")
+            mmpm.addBodyPart(nbp)
+          }
+
+          // save changes
+          newmsg.saveChanges()
+          newmsg
+
+        } else { // no backup, quicker method
+
+          val gmmsg = msg.asInstanceOf[GmailMessage]
+          // https://pastebin.com/vtKcas0K
+          val multipart = gmmsg.getContent.asInstanceOf[Multipart]
+
+          // create replacement message with old headers
+          val newmsg = new MimeMessage(session)
+          // preserve threads: https://developers.google.com/gmail/api/guides/threads#adding_drafts_and_messages_to_threads
+          newmsg.setReplyTo(gmmsg.getReplyTo) // add to thread!
+
+          import scala.jdk.CollectionConverters._
+          for (h <- gmmsg.getAllHeaders.asScala) {
+            newmsg.setHeader(h.getName, h.getValue)
+          }
+
+          val mmpm = new MimeMultipart()
+          newmsg.setContent(mmpm)
+
+          for (i <- 0 until multipart.getCount) {
+            val part = multipart.getBodyPart(i).asInstanceOf[MimeBodyPart]
+            println("part: type=" + part.getContentType + " disp=" + part.getDisposition + " size=" + part.getSize + " filename=" + part.getFileName)
+            if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition) && todel.bodyparts.exists(_.filename == part.getFileName)) {
+              println("add attachment dummy!")
+              val nbp = new MimeBodyPart()
+              nbp.setHeader("Content-Type", "text/plain")
+              nbp.setFileName(part.getFileName + ".txt")
+              nbp.setText("Removed attachment <" + part.getFileName + "> of size <" + part.getSize + ">")
+              mmpm.addBodyPart(nbp)
+            } else {
+              println("add part to new msg!")
+              mmpm.addBodyPart(part)
+            }
+          }
+
+          // save changes
+          newmsg.saveChanges()
+          newmsg
         }
-
-        // save changes
-        newmsg.saveChanges()
 
         println("putting message back into gmail...")
         val resm = allmail.addMessages(Array(newmsg)).head

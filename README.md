@@ -2,6 +2,7 @@
 
 This is an app that connects to your Gmail account via imap and removes selected large attachments, without screwing up conversations/threads/labels.
 
+* new: option to *not* perform a backup before attachment removal - this is much faster since not the whole message is downloaded.
 * Before removing an attachment, a local full backup of the raw email is saved. But you should save your important attachments manually before!
 * The removed attachment is replaced by a text-file attachment containing the original attachment filename and size.
 * It is super slow, gmail is throttling API access.
