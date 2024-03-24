@@ -101,6 +101,15 @@ object GmailStuff {
     lb
   }
 
+  def duration(milisecs: Long): String = {
+    return java.time.Duration.ofSeconds(scala.math.round(milisecs/1000)).toString()
+      .replace( "PT" , "" )
+      .replace( "H" , " hours " )
+      .replace( "M" , " minutes " )
+      .replace( "S" , " seconds " )
+      .stripTrailing()
+  }
+
   def getToDelete: Task[ListBuffer[ToDelete]] = new javafx.concurrent.Task[ListBuffer[ToDelete]] {
     override def call(): ListBuffer[ToDelete] = {
       val dellist = new ListBuffer[ToDelete]()
@@ -110,7 +119,10 @@ object GmailStuff {
       inbox.open(Folder.READ_ONLY)
       val msgs = inbox.search(new GmailRawSearchTerm(gmailsearch + (if (label.isEmpty) "" else " label:" + label)))
       println(s" ${msgs.length } emails found matching the criteria, querying the first limit=$limit emails only!")
+      var n = msgs.length
+      if (n > limit) n = limit
       var count = 0
+      val start = System.currentTimeMillis
       breakable {
         for (message <- msgs) {
           if (isCancelled) {
@@ -121,12 +133,30 @@ object GmailStuff {
           val bps = new ListBuffer[Bodypart]()
           val gm = message.asInstanceOf[GmailMessage]
           println(s"checking gid=${gm.getMsgId } subj=${message.getSubject } labels:${gm.getLabels.mkString(",") }")
-          updateMessage(s"checking gid=${gm.getMsgId } subj=${message.getSubject } labels:${gm.getLabels.mkString(",") }")
+          val elapsed = System.currentTimeMillis - start
+          var text = s"(processed ${count} of ${n} emails in " + duration(elapsed) + ")"
+          if (count > 0) text = duration(elapsed / count * n - elapsed + 1000) + " left " + text
+          updateMessage(text)
+          updateProgress(count, n)
           val mp = gm.getContent
           mp match {
             case mmpm: MimeMultipart =>
               for (i <- 0 until mmpm.getCount) {
                 val bp = mmpm.getBodyPart(i)
+                if (bp.getContentType.startsWith("multi")) {
+                  val mp2 = bp.getContent
+                  mp2 match {
+                    case mmpm2: MimeMultipart =>
+                      for (i <- 0 until mmpm2.getCount) {
+                        val bp = mmpm2.getBodyPart(i)
+                        if (bp.getSize > minbytes && bp.getFileName != null) {
+                          bps += new Bodypart(i, bp.getFileName, bp.getSize, bp.getContentType)
+                          dodelete = true
+                        }
+                      }
+                    case _ => println("  unknown mp.class = " + mp.getClass)
+                  }
+                } else
                 if (bp.getSize > minbytes && bp.getFileName != null) {
                   bps += new Bodypart(i, bp.getFileName, bp.getSize, bp.getContentType)
                   dodelete = true
@@ -156,6 +186,8 @@ object GmailStuff {
       if (dellist.isEmpty) return
       println("deleting attachments of " + dellist.length + " emails...")
       var count = 0
+      val n = dellist.length
+      val start = System.currentTimeMillis
       for (todel <- dellist) {
         if (isCancelled) {
           println("CANCELLED!!!")
@@ -238,7 +270,7 @@ object GmailStuff {
           for (i <- 0 until multipart.getCount) {
             val part = multipart.getBodyPart(i).asInstanceOf[MimeBodyPart]
             println("part: type=" + part.getContentType + " disp=" + part.getDisposition + " size=" + part.getSize + " filename=" + part.getFileName)
-            if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition) && todel.bodyparts.exists(_.filename == part.getFileName)) {
+            if (todel.bodyparts.exists(_.filename == part.getFileName)) {
               println("add attachment dummy!")
               val nbp = new MimeBodyPart()
               nbp.setHeader("Content-Type", "text/plain")
@@ -247,7 +279,28 @@ object GmailStuff {
               mmpm.addBodyPart(nbp)
             } else {
               println("add part to new msg!")
-              mmpm.addBodyPart(part)
+              if (part.getContentType.startsWith("multi")) {
+                val mmpm2 = new MimeMultipart()
+                val multipart2 = part.getContent.asInstanceOf[Multipart]
+                for (i <- 0 until multipart2.getCount) {
+                  val part2 = multipart2.getBodyPart(i).asInstanceOf[MimeBodyPart]
+                  println("nested part: type=" + part2.getContentType + " disp=" + part2.getDisposition + " size=" + part2.getSize + " filename=" + part2.getFileName)
+                  if (todel.bodyparts.exists(_.filename == part2.getFileName)) {
+                    println("add attachment dummy!")
+                    val nbp = new MimeBodyPart()
+                    nbp.setHeader("Content-Type", "text/plain")
+                    nbp.setFileName(part2.getFileName + ".txt")
+                    nbp.setText("Removed attachment <" + part2.getFileName + "> of size <" + part2.getSize + ">")
+                    mmpm2.addBodyPart(nbp)
+                  } else {
+                    println("add part to new msg!")
+                    mmpm2.addBodyPart(part2)
+                  }
+                  val alternativeBodyPart = new MimeBodyPart()
+                  alternativeBodyPart.setContent(mmpm2)
+                  mmpm.addBodyPart(alternativeBodyPart)
+                }
+              } else mmpm.addBodyPart(part)
             }
           }
 
@@ -285,6 +338,7 @@ object GmailStuff {
         if (label != "") {
           oldlabels -= label
         }
+
         if (oldlabels.isEmpty) {
           println("no labels to restore!")
         } else {
@@ -307,6 +361,13 @@ object GmailStuff {
             }
           })
         }
+
+        val elapsed = System.currentTimeMillis - start
+        var text = s"(processed ${count} of ${n} emails in " + duration(elapsed) + ")"
+        if (count > 0) text = duration(elapsed / count * n - elapsed + 1000) + " left " + text
+        updateMessage(text)
+        updateProgress(count, n)
+
       }
       allmail.close(true)
       println("Removing attachments finished!")
