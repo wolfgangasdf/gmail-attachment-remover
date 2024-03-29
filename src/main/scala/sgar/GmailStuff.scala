@@ -102,7 +102,7 @@ object GmailStuff {
   }
 
   def duration(milisecs: Long): String = {
-    return java.time.Duration.ofSeconds(scala.math.round(milisecs/1000)).toString()
+    java.time.Duration.ofSeconds(scala.math.round(milisecs.toDouble / 1000)).toString
       .replace( "PT" , "" )
       .replace( "H" , " hours " )
       .replace( "M" , " minutes " )
@@ -134,7 +134,7 @@ object GmailStuff {
           val gm = message.asInstanceOf[GmailMessage]
           println(s"checking gid=${gm.getMsgId } subj=${message.getSubject } labels:${gm.getLabels.mkString(",") }")
           val elapsed = System.currentTimeMillis - start
-          var text = s"(processed ${count} of ${n} emails in " + duration(elapsed) + ")"
+          var text = s"(processed $count of $n emails in " + duration(elapsed) + ")"
           if (count > 0) text = duration(elapsed / count * n - elapsed + 1000) + " left " + text
           updateMessage(text)
           updateProgress(count, n)
@@ -363,7 +363,7 @@ object GmailStuff {
         }
 
         val elapsed = System.currentTimeMillis - start
-        var text = s"(processed ${count} of ${n} emails in " + duration(elapsed) + ")"
+        var text = s"(processed $count of $n emails in " + duration(elapsed) + ")"
         if (count > 0) text = duration(elapsed / count * n - elapsed + 1000) + " left " + text
         updateMessage(text)
         updateProgress(count, n)
