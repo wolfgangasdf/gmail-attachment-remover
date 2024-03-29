@@ -685,7 +685,7 @@ object Helpers {
       override def createTask(): javafx.concurrent.Task[T] = atask
     })
     val lab = new Label("")
-    private val progress: ProgressBar = new ProgressBar { minWidth = 250 }
+    private val progress: ProgressBar = new ProgressBar { minWidth = 500 }
     private val al: Dialog[Unit] = new Dialog[Unit] {
       initOwner(Sgar.stage)
       title = atitle
