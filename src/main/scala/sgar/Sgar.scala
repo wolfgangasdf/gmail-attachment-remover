@@ -229,7 +229,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
   val cbCaffeinate = new CheckBox("Run caffeinate")
-  private val cbDobackup = new CheckBox("Backup message (slow)")
+  private val cbDobackup = new CheckBox("Backup messages (slow)")
   private val cbgmailsearch: ComboBox[String] = new ComboBox[String] {
     hgrow = Priority.Always
     maxWidth = Double.MaxValue
@@ -451,14 +451,19 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
           cbaccount,
           tfpassword,
           new Button("Get app password") {
-            tooltip = new Tooltip {
-              text = "This opens google settings. Select \"Mail\", \"gmail-attachment-remover\", and copy the password here."
-            }
             onAction = (_: ActionEvent) => {
+              val link = "https://security.google.com/settings/security/apppasswords"
+              val a = new Alert(AlertType.Information)
+              val ta = new TextArea("Clicking OK will open google settings. Select \"Mail\", \"gmail-attachment-remover\", and copy the password in the field.\n" +
+                "If this doesn't work, open this link in a browser:\n" + link)
+              ta.editable = false
+              ta.wrapText = true
+              a.getDialogPane.content = ta
+              a.showAndWait()
               if (Desktop.isDesktopSupported) {
                 val desktop = Desktop.getDesktop
                 if (desktop.isSupported(Desktop.Action.BROWSE)) {
-                  desktop.browse(new URI("https://security.google.com/settings/security/apppasswords"))
+                  desktop.browse(new URI(link))
                 }
               }
             }

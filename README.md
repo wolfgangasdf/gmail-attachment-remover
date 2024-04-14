@@ -3,11 +3,9 @@
 This is an app that connects to your Gmail account via imap and removes selected large attachments, without screwing up conversations/threads/labels.
 
 * new: option to *not* perform a backup before attachment removal - this is much faster since not the whole message is downloaded.
-* Before removing an attachment, a local full backup of the raw email is saved. But you should save your important attachments manually before!
+* If backup is not disabled: Before removing an attachment, a local full backup of the raw email is saved. But you should save your important attachments manually before!
 * The removed attachment is replaced by a text-file attachment containing the original attachment filename and size.
 * It is super slow, gmail is throttling API access.
-
-2021: Finally, someone has made a more complete app with a very similar design, I haven't tested it: https://github.com/ilovefreesw/unattach. Update 2023: now it's a webapp.
 
 ## Tutorial
 
@@ -23,6 +21,7 @@ On your computer:
     * Gmail account (email): You can deal with multiple accounts with different settings.
     * Password: I suggest to use "application specific passwords" just click the button and get a password for "Mail".
     * Select a folder for mail backups.
+    * `Backup messages`: If selected a backup of the full messages will be downloaded before attachment removal. Very slow.
     * `limit`: select a maximum number of emails processed, e.g., 100. After this you can check the emails if everything is fine, further the process might take very long and google might interrupt the connection from time to time.
     * `label`: Gmail message label to be searched for, e.g. `removeattachments`. It is removed after attachment removal (doesn't work in conversation view, see above). If empty, this is ignored.
     * You can also give custom names for the "All Mail" and "Trash" folders - check the error log if the defaults don't work (e.g., other languages).
@@ -43,7 +42,7 @@ On your computer:
 * It works very well here since >5 years, but Google might change something at any time which could break it.
 * If the software or connection is interrupted:
     * In the worst case you have lost the labels of one email, more likely is to have an additional email, but in most cases nothing happens, just start over.
-    * You always have a downloaded backup of the email.
+    * If backup is not disabled: You always have a downloaded backup of the email.
 * Probably, you should always have a backup your Gmail account with, e.g., [gmvault](http://gmvault.org); however, mind that this is not incremental.
 * Of course, I cannot take any responsibility for anything.
 

@@ -49,10 +49,10 @@ javafx {
 val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
-    implementation("org.scala-lang:scala-library:2.13.12")
+    implementation("org.scala-lang:scala-library:2.13.13")
     implementation("org.scalafx:scalafx_2.13:21.0.0-R32")
-    implementation("jakarta.mail:jakarta.mail-api:2.1.2")
-    implementation("org.eclipse.angus:angus-mail:2.0.2")
+    implementation("jakarta.mail:jakarta.mail-api:2.1.3")
+    implementation("org.eclipse.angus:angus-mail:2.0.3")
     implementation("com.sun.mail:gimap:2.0.1")
     cPlatforms.forEach {platform ->
         val cfg = configurations.create("javafx_$platform")
