@@ -2,12 +2,10 @@
 
 This is an app that connects to your Gmail account via imap and removes selected large attachments, without screwing up conversations/threads/labels.
 
-* new: option to *not* perform a backup before attachment removal - this is much faster since not the whole message is downloaded.
-* If backup is not disabled: Before removing an attachment, a local full backup of the raw email is saved. But you should save your important attachments manually before!
 * The removed attachment is replaced by a text-file attachment containing the original attachment filename and size.
-* It is super slow, gmail is throttling API access.
+* If backup is selected: Before removing an attachment, a local full backup of the raw email is saved (very slow).
 
-## Tutorial
+## Getting started
 
 Do this in Gmail:
 
@@ -37,9 +35,8 @@ On your computer:
 
 ## Is it safe to use?
 
-* The Gmail trash folder is emptied in the process.
 * The password is saved in clear text in the settings file.
-* It works very well here since >5 years, but Google might change something at any time which could break it.
+* It works very well here since >10 years, but Google might change something at any time which could break it.
 * If the software or connection is interrupted:
     * In the worst case you have lost the labels of one email, more likely is to have an additional email, but in most cases nothing happens, just start over.
     * If backup is not disabled: You always have a downloaded backup of the email.
@@ -68,7 +65,8 @@ Packaging:
 
 ## Notes
 
-* Only attachments which have a "filename" are considered. This excludes effectively html/text message parts.
+* Only attachments which have a "content ID" are considered, multipart messages (1 level deep) with subtypes should be correctly handled.
+* Original messages end up in trash, gmail removes them periodically.
 * IMAP message flags are preserved.
 * Gmail message labels are preserved. If the `label` tag (see above) exists, it is removed after attachment removal (doesn't work for conversation view).
 * The processed mails get a new message-ID, which doesn't matter.

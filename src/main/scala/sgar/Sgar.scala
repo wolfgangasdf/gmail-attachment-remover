@@ -25,17 +25,13 @@ import scalafx.collections.ObservableBuffer
 import scalafx.concurrent.{Service, WorkerStateEvent}
 import scalafx.event.ActionEvent
 import scalafx.geometry.{Insets, Pos}
+import scalafx.scene.Scene
 import scalafx.scene.control.Alert.AlertType
 import scalafx.scene.control.Button._
 import scalafx.scene.control.TreeTableColumn._
 import scalafx.scene.control._
 import scalafx.scene.layout.HBox._
 import scalafx.scene.layout._
-import scalafx.scene.paint.Color
-import scalafx.scene.shape.Rectangle
-import scalafx.scene.shape.Rectangle._
-import scalafx.scene.text.Text
-import scalafx.scene.{Group, Scene}
 import scalafx.stage._
 import sgar.GmailStuff.{Bodypart, ToDelete}
 import sgar.Helpers.MyWorker
@@ -110,7 +106,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       if (bodypart == null) {
         List(toDelete.gmid.toString, toDelete.subject, toDelete.date, toDelete.from)(i)
       } else {
-        List(bodypart.bpi.toString, bodypart.filename, bodypart.filesize.toString, bodypart.contentType)(i)
+        List(bodypart.contentID, bodypart.filename, bodypart.filesize.toString, bodypart.contentType)(i)
       }
     }
   }
@@ -121,7 +117,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
   private val ttv: TreeTableView[TreeThing] = new TreeTableView[TreeThing] {
     vgrow = Priority.Always
     columnResizePolicy = TreeTableView.ConstrainedResizePolicy
-    val colheaders = List("Gmail ID/Attachment #", "Subject/Filename", "Date/Size", "Sender/Type")
+    val colheaders: Seq[String] = List("Gmail ID/Content ID", "Subject/Filename", "Date/Size", "Sender/Type")
     for (i <- colheaders.indices) {
       columns += new TreeTableColumn[TreeThing, String](colheaders(i)) {
         cellValueFactory = { p => ReadOnlyStringWrapper(p.value.getValue.getColumn(i)) }
@@ -137,7 +133,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       text = "... to prevent attachments from being removed"
     }
     onAction = (_: ActionEvent) => {
-      for (it <- ttv.getSelectionModel.getSelectedItems) {
+      for (it <- ttv.getSelectionModel.getSelectedItems.toSeq.reverse) { // important that reversed!
         if (it.getValue.bodypart == null) { // whole message
           tiroot.getChildren.remove(it)
         } else { // just one attachment
@@ -308,46 +304,6 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     }
   }
 
-  // TODO automatic documentation: show all tooltip texts with arrow to field, then auto-distribute!
-  // would be nice but is not trivial. unfortunately tooltips don't do that automatically & don't have an arrow.
-  // simplest case: check particular x-position, then check for closest y-position without collision with boxes!
-  // (let arrows overlap) and/or search afterwards for best arrow connection (in 5px steps, 2D!)
-  private val btHelp: Button = new Button("Help") {
-    tooltip = new Tooltip {
-      text = "Show all tooltips"
-    }
-    onAction = (_: ActionEvent) => {
-
-      def transparentStage: Stage = new Stage() {
-        initStyle(StageStyle.Transparent)
-        initOwner(Sgar.stage)
-        x = Sgar.stage.getX
-        y = Sgar.stage.getY + Sgar.stage.getHeight - Sgar.stage.getScene.getHeight // add window title bar height!
-        val group: Group = new Group {
-          children.add(new Rectangle {
-            stroke = Color.Red; fill = null; x = 0; y = 0; width = Sgar.stage.getScene.getWidth; height = Sgar.stage.getScene.getHeight
-          })
-          Seq(btGetEmails, btRemoveAttachments, btRemoveRows, btFolderList, btAbout, cbaccount, cbgmailsearch, tflabel, tfallmailfolder, tftrashfolder).foreach(nn => {
-            val tt = nn.getTooltip
-            val xx = nn.localToScene(nn.getLayoutBounds)
-            children.add(new Text(xx.getMinX, xx.getMinY, tt.getText))
-            children.add(new Rectangle {
-              x = xx.getMinX; y = xx.getMinY; width = xx.getWidth; height = xx.getHeight
-            })
-            println(s"xx=$xx t=${tt.getText}")
-          })
-        }
-        val myScene: Scene = new Scene(group, Sgar.stage.getScene.getWidth, Sgar.stage.getScene.getHeight) {
-          fill = null
-        }
-        scene = myScene
-      }
-
-      transparentStage.show()
-
-    }
-  }
-
   private def showGmailErrorCleanup(e: Throwable): Unit = {
     println("Exception " + e.getMessage)
     e.printStackTrace()
@@ -401,19 +357,18 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       setButtons()
       setupGmail()
       val dellist = new ListBuffer[ToDelete]
-      for (timails <- tiroot.children) {
+      for (timail <- tiroot.children) {
         val bplist = new ListBuffer[Bodypart]
-        for (tibps <- timails.getChildren) {
+        for (tibps <- timail.getChildren) {
           bplist += tibps.getValue.bodypart
         }
         if (bplist.nonEmpty) {
-          var td = timails.getValue.toDelete
+          val td = timail.getValue.toDelete
           td.bodyparts.clear()
           td.bodyparts ++= bplist
           dellist += td
         }
       }
-
       val task = GmailStuff.doDelete(dellist)
       task.onSucceeded = () => {
         Helpers.runUI {
@@ -531,7 +486,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
             Sgar.stopApp()
           }
         }
-        children ++= List(btGetEmails, btRemoveAttachments, btFolderList, btAbout, btHelp)
+        children ++= List(btGetEmails, btRemoveAttachments, btFolderList, btAbout)
       }
     )
   }

@@ -23,9 +23,16 @@ plugins {
     scala
     id("idea")
     application
-    id("com.github.ben-manes.versions") version "0.44.0"
+    id("com.github.ben-manes.versions") version "0.52.0"
     id("org.openjfx.javafxplugin") version "0.0.13"
-    id("org.beryx.runtime") version "1.13.0"
+    id("org.beryx.runtime") version "1.13.1"
+}
+
+idea {
+    module {
+        isDownloadJavadoc = true
+        isDownloadSources = true
+    }
 }
 
 application {
@@ -49,7 +56,7 @@ javafx {
 val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
-    implementation("org.scala-lang:scala-library:2.13.13")
+    implementation("org.scala-lang:scala-library:2.13.16")
     implementation("org.scalafx:scalafx_2.13:21.0.0-R32")
     implementation("jakarta.mail:jakarta.mail-api:2.1.3")
     implementation("org.eclipse.angus:angus-mail:2.0.3")
@@ -104,14 +111,14 @@ open class CrossPackage : DefaultTask() {
 
     @TaskAction
     fun crossPackage() {
-        File("${project.buildDir.path}/crosspackage/").mkdirs()
+        File("${project.layout.buildDirectory.get().asFile.path}/crosspackage/").mkdirs()
         project.runtime.targetPlatforms.get().forEach { (t, _) ->
             println("targetplatform: $t")
             val imgdir = "${project.runtime.imageDir.get()}/${project.name}-$t"
             println("imagedir=$imgdir targetplatform=$t")
             when {
                 t.startsWith("mac") -> {
-                    val appp = File(project.buildDir.path + "/crosspackage/$t/$execfilename.app").path
+                    val appp = File(project.layout.buildDirectory.get().asFile.path + "/crosspackage/$t/$execfilename.app").path
                     project.delete(appp)
                     project.copy {
                         into(appp)
@@ -169,7 +176,7 @@ open class CrossPackage : DefaultTask() {
                     // touch folder to update Finder
                     File(appp).setLastModified(System.currentTimeMillis())
                     // zip it
-                    zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-$t.zip"), File("${project.buildDir.path}/crosspackage/$t"))
+                    zipTo(File("${project.layout.buildDirectory.get().asFile.path}/crosspackage/$execfilename-$t.zip"), File("${project.layout.buildDirectory.get().asFile.path}/crosspackage/$t"))
                 }
                 t == "win" -> {
                     File("$imgdir/bin/$execfilename.bat").delete() // from runtime, not nice
@@ -179,10 +186,10 @@ open class CrossPackage : DefaultTask() {
                         set DIR=%~dp0
                         start "" "%DIR%\bin\javaw" %JLINK_VM_OPTIONS% -classpath "%DIR%/lib/*" ${project.application.mainClass.get()} 
                     """.trimIndent())
-                    zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-$t.zip"), File(imgdir))
+                    zipTo(File("${project.layout.buildDirectory.get().asFile.path}/crosspackage/$execfilename-$t.zip"), File(imgdir))
                 }
                 t.startsWith("linux") -> {
-                    zipTo(File("${project.buildDir.path}/crosspackage/$execfilename-$t.zip"), File(imgdir))
+                    zipTo(File("${project.layout.buildDirectory.get().asFile.path}/crosspackage/$execfilename-$t.zip"), File(imgdir))
                 }
             }
         }
@@ -206,7 +213,7 @@ tasks["runtime"].doLast {
     cPlatforms.forEach { platform ->
         println("Copy jmods for platform $platform")
         val cfg = configurations["javafx_$platform"]
-        cfg.resolvedConfiguration.files.forEach { f ->
+        cfg.incoming.files.forEach { f ->
             copy {
                 from(f)
                 into("${project.runtime.imageDir.get()}/${project.name}-$platform/lib")
@@ -215,11 +222,11 @@ tasks["runtime"].doLast {
     }
 }
 
-task("dist") {
+tasks.register("dist") {
     dependsOn("crosspackage")
     doLast {
         println("Deleting build/[image,jre,install]")
-        project.delete(project.runtime.imageDir.get(), project.runtime.jreDir.get(), "${project.buildDir.path}/install")
+        project.delete(project.runtime.imageDir.get(), project.runtime.jreDir.get(), "${project.layout.buildDirectory.get().asFile.path}/install")
         println("Created zips in build/crosspackage")
     }
 }

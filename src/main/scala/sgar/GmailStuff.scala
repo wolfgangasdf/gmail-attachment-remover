@@ -17,18 +17,20 @@
 
 package sgar
 
-import scala.collection.mutable.ListBuffer
-import scala.util.control.Breaks._
-import java.io.{FileInputStream, FileOutputStream}
-import java.util.Properties
-import jakarta.mail._
-import jakarta.mail.internet._
 import com.sun.mail.gimap._
 import com.sun.mail.iap.Argument
-import com.sun.mail.imap.{IMAPFolder, IMAPMessage}
 import com.sun.mail.imap.IMAPFolder.ProtocolCommand
 import com.sun.mail.imap.protocol.IMAPProtocol
+import com.sun.mail.imap.{IMAPFolder, IMAPMessage}
+import jakarta.mail._
+import jakarta.mail.internet._
 import javafx.concurrent.Task
+
+import java.io.FileOutputStream
+import java.util.Properties
+import scala.collection.mutable.ListBuffer
+import scala.util.control.Breaks._
+import scala.util.matching.Regex
 
 
 object GmailStuff {
@@ -48,14 +50,14 @@ object GmailStuff {
 
   private def heads(s: String, len: Int): String = if (s != null) s.substring(0, math.min(len, s.length)) else ""
 
-  class Bodypart(val bpi: Int, val filename: String, val filesize: Int, val contentType: String)
+  class Bodypart( val contentID: String, val filename: String, val filesize: Int, val contentType: String, val disposition: String)
 
   class ToDelete(val gmid: Long,
                  val bodyparts: ListBuffer[Bodypart],
                  val from: String,
                  val subject: String,
                  val date: String) {
-    override def toString: String = gmid.toString + ": " + heads(subject, 10) + "; bps: " + bodyparts.map(bp => bp.bpi).mkString(",")
+    override def toString: String = gmid.toString + ": " + heads(subject, 10) + "; bps: " + bodyparts.map(bp => bp.contentID).mkString(",")
   }
 
   def flagToString(f: Flags.Flag): String = {
@@ -110,6 +112,36 @@ object GmailStuff {
       .stripTrailing()
   }
 
+  // this loops over all bodyparts and executes bpaction(mimeBodyPart), and start/endmultipart()
+  def handleMessage(gm: GmailMessage, startmultipart: String /*subtype*/ => Unit = _ => {}, endmultipart: () => Unit = () => {}, bpaction: MimeBodyPart => Unit): Unit = {
+    val mp = gm.getContent
+    mp match {
+      case mmpm: MimeMultipart =>
+        for (i <- 0 until mmpm.getCount) {
+          val bp = mmpm.getBodyPart(i).asInstanceOf[MimeBodyPart]
+          println(s"XXX found bp: ty=${bp.getContentType}, fn=${bp.getFileName}, si=${bp.getSize}, disp=${bp.getDisposition}, cid=${bp.getContentID}, cmd5=${bp.getContentMD5}")
+          if (bp.getContentType.startsWith("multipart/")) {
+            val mp2 = bp.getContent
+            mp2 match {
+              case mmpm2: MimeMultipart =>
+                val subtypePattern: Regex = """(?s)^multipart/(\w*);.*""".r
+                val subtypePattern(subtype) = mmpm2.getContentType
+                startmultipart(subtype)
+                for (i <- 0 until mmpm2.getCount) {
+                  val bp = mmpm2.getBodyPart(i).asInstanceOf[MimeBodyPart]
+                  println(s"YYY found bp: ty=${bp.getContentType}, fn=${bp.getFileName}, si=${bp.getSize}, disp=${bp.getDisposition}, cid=${bp.getContentID}, cmd5=${bp.getContentMD5}")
+                  bpaction(bp)
+                }
+                endmultipart()
+              case _ => throw new Exception("  unknown mp.class = " + mp.getClass)
+            }
+          } else
+            bpaction(bp)
+        }
+      case _ => throw new Exception("  unknown mp.class = " + mp.getClass)
+    }
+  }
+
   def getToDelete: Task[ListBuffer[ToDelete]] = new javafx.concurrent.Task[ListBuffer[ToDelete]] {
     override def call(): ListBuffer[ToDelete] = {
       val dellist = new ListBuffer[ToDelete]()
@@ -138,32 +170,12 @@ object GmailStuff {
           if (count > 0) text = duration(elapsed / count * n - elapsed + 1000) + " left " + text
           updateMessage(text)
           updateProgress(count, n)
-          val mp = gm.getContent
-          mp match {
-            case mmpm: MimeMultipart =>
-              for (i <- 0 until mmpm.getCount) {
-                val bp = mmpm.getBodyPart(i)
-                if (bp.getContentType.startsWith("multi")) {
-                  val mp2 = bp.getContent
-                  mp2 match {
-                    case mmpm2: MimeMultipart =>
-                      for (i <- 0 until mmpm2.getCount) {
-                        val bp = mmpm2.getBodyPart(i)
-                        if (bp.getSize > minbytes && bp.getFileName != null) {
-                          bps += new Bodypart(i, bp.getFileName, bp.getSize, bp.getContentType)
-                          dodelete = true
-                        }
-                      }
-                    case _ => println("  unknown mp.class = " + mp.getClass)
-                  }
-                } else
-                if (bp.getSize > minbytes && bp.getFileName != null) {
-                  bps += new Bodypart(i, bp.getFileName, bp.getSize, bp.getContentType)
-                  dodelete = true
-                }
-              }
-            case _ => println("  unknown mp.class = " + mp.getClass)
-          }
+          handleMessage(gm, bpaction = bp => {
+            if (bp.getSize > minbytes && bp.getContentID != null) {
+              bps += new Bodypart(bp.getContentID, bp.getFileName, bp.getSize, bp.getContentType, bp.getDisposition)
+              dodelete = true
+            }
+          })
           if (dodelete) {
             dellist += new ToDelete(gm.getMsgId, bps, gm.getFrom.headOption.map(_.toString).getOrElse(""), gm.getSubject, gm.getSentDate.toString)
             count += 1
@@ -194,7 +206,7 @@ object GmailStuff {
           throw new InterruptedException("doDelete cancelled!")
         }
         count += 1
-        // TODO testing: re-connect for each message, gmail drops connection :-(
+        // re-connect for each message, gmail drops connection :-(
 //        if (startns == -1 || (System.nanoTime - startns) / 1e9 > 10 * 60) {
 //          // re-open connection incl auth after 10 minutes... Gmail seems to drop it from time to time.
           println("----- Re-connect each time...")
@@ -214,7 +226,7 @@ object GmailStuff {
         val oldlabels = msg.asInstanceOf[GmailMessage].getLabels.toBuffer[String]
         val oldflags = msg.getFlags
 
-        val newmsg = if (doBackup) { // with backup, slow since whole message is downloaded
+        if (doBackup) { // slow since whole message is downloaded
           println("backup message...")
           val backupfile = new java.io.File(backupdir, todel.gmid.toString + ".msg")
           println("  backupfile=" + backupfile.getPath)
@@ -225,31 +237,9 @@ object GmailStuff {
           val os = new FileOutputStream(backupfile)
           msg.writeTo(os)
           os.close()
+        }
 
-          println("re-creating message...")
-          val is = new FileInputStream(backupfile)
-          val newmsg = new MimeMessage(session, is)
-          is.close()
-
-          println("remove attachments...")
-          val mmpm = newmsg.getContent.asInstanceOf[MimeMultipart]
-          // do in reverse order!
-          for (bpdel <- todel.bodyparts.reverse) mmpm.removeBodyPart(bpdel.bpi)
-          // re-add as empty attachment
-          for (bpdel <- todel.bodyparts) {
-            val nbp = new MimeBodyPart()
-            nbp.setHeader("Content-Type", "text/plain")
-            nbp.setFileName(bpdel.filename + ".txt")
-            nbp.setText("Removed attachment <" + bpdel.filename + "> of size <" + bpdel.filesize + ">")
-            mmpm.addBodyPart(nbp)
-          }
-
-          // save changes
-          newmsg.saveChanges()
-          newmsg
-
-        } else { // no backup, quicker method
-
+        val newmsg = { // with backup, slow since whole message is downloaded
           val gmmsg = msg.asInstanceOf[GmailMessage]
           // https://pastebin.com/vtKcas0K
           val multipart = gmmsg.getContent.asInstanceOf[Multipart]
@@ -267,42 +257,29 @@ object GmailStuff {
           val mmpm = new MimeMultipart()
           newmsg.setContent(mmpm)
 
-          for (i <- 0 until multipart.getCount) {
-            val part = multipart.getBodyPart(i).asInstanceOf[MimeBodyPart]
-            println("part: type=" + part.getContentType + " disp=" + part.getDisposition + " size=" + part.getSize + " filename=" + part.getFileName)
-            if (todel.bodyparts.exists(_.filename == part.getFileName)) {
+          var nestedmmp: MimeMultipart = null // if not null, bpaction adds to this!
+
+          handleMessage(gmmsg, startmultipart = subtype => {
+            nestedmmp = new MimeMultipart(subtype)
+          }, endmultipart = () => {
+            val multiBodyPart = new MimeBodyPart()
+            multiBodyPart.setContent(nestedmmp)
+            mmpm.addBodyPart(multiBodyPart)
+            nestedmmp = null
+          },
+            bpaction = bp => {
+            if (todel.bodyparts.exists(_.contentID == bp.getContentID)) {
               println("add attachment dummy!")
               val nbp = new MimeBodyPart()
               nbp.setHeader("Content-Type", "text/plain")
-              nbp.setFileName(part.getFileName + ".txt")
-              nbp.setText("Removed attachment <" + part.getFileName + "> of size <" + part.getSize + ">")
-              mmpm.addBodyPart(nbp)
+              nbp.setFileName(bp.getFileName + ".txt")
+              nbp.setText("Removed attachment <" + bp.getFileName + "> of size <" + bp.getSize + ">")
+              (if (nestedmmp == null) mmpm else nestedmmp).addBodyPart(nbp)
             } else {
-              println("add part to new msg!")
-              if (part.getContentType.startsWith("multi")) {
-                val mmpm2 = new MimeMultipart()
-                val multipart2 = part.getContent.asInstanceOf[Multipart]
-                for (i <- 0 until multipart2.getCount) {
-                  val part2 = multipart2.getBodyPart(i).asInstanceOf[MimeBodyPart]
-                  println("nested part: type=" + part2.getContentType + " disp=" + part2.getDisposition + " size=" + part2.getSize + " filename=" + part2.getFileName)
-                  if (todel.bodyparts.exists(_.filename == part2.getFileName)) {
-                    println("add attachment dummy!")
-                    val nbp = new MimeBodyPart()
-                    nbp.setHeader("Content-Type", "text/plain")
-                    nbp.setFileName(part2.getFileName + ".txt")
-                    nbp.setText("Removed attachment <" + part2.getFileName + "> of size <" + part2.getSize + ">")
-                    mmpm2.addBodyPart(nbp)
-                  } else {
-                    println("add part to new msg!")
-                    mmpm2.addBodyPart(part2)
-                  }
-                  val alternativeBodyPart = new MimeBodyPart()
-                  alternativeBodyPart.setContent(mmpm2)
-                  mmpm.addBodyPart(alternativeBodyPart)
-                }
-              } else mmpm.addBodyPart(part)
+              println("add attachment!")
+              (if (nestedmmp == null) mmpm else nestedmmp).addBodyPart(bp)
             }
-          }
+          })
 
           // save changes
           newmsg.saveChanges()
@@ -314,12 +291,14 @@ object GmailStuff {
         val newgmailid = resm.asInstanceOf[GmailMessage].getMsgId
         println(" newmsg gmail id=" + newgmailid)
 
-        println("deleting message in gmail and emptying trash...")
-        allmail.copyMessages(Array(msg), trash)
-        trash.open(Folder.READ_WRITE)
-        val tmsgs = trash.getMessages
-        for (tmsg <- tmsgs) tmsg.setFlag(Flags.Flag.DELETED, true)
-        trash.close(true)
+        println("moving message to trash in gmail...")
+        allmail.copyMessages(Array(msg), trash) // https://stackoverflow.com/a/53945146
+
+        // empty trash: seems not to be needed, mail is nicely in trash, message thread is fine!
+        //        trash.open(Folder.READ_WRITE)
+        //        val tmsgs = trash.getMessages
+        //        for (tmsg <- tmsgs) tmsg.setFlag(Flags.Flag.DELETED, true)
+        //        trash.close(true)
 
         println("re-open folder...")
         // re-open folder, this is essential for doCommand() to work below!
@@ -355,7 +334,7 @@ object GmailStuff {
                 println(args)
                 println("ERROR: responses:\n ")
                 for (rr <- r) println(rr)
-                throw new MessagingException("error setting labels of email!")
+                throw new Exception("error setting labels of email!")
               }
               null
             }
