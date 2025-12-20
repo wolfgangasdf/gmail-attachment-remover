@@ -525,6 +525,7 @@ object Sgar extends JFXApp3 {
     val oldErr: PrintStream = System.err
     System.setOut(new PrintStream(new MyConsole(false), true))
     System.setErr(new PrintStream(new MyConsole(true), true))
+    println(s"Build time: ${Helpers.getClassBuildTime.toString} java.version: ${System.getProperty("java.version")} javafx.runtime.version: ${System.getProperty("javafx.runtime.version")}")
 
     class MyConsole(errchan: Boolean) extends java.io.OutputStream {
       override def write(b: Int): Unit = {
