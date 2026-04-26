@@ -43,6 +43,7 @@ object GmailStuff {
   var label = ""
   var allmailfolder = ""
   var trashfolder = ""
+  var gmailFolderPrefix = ""
   var doBackup = false
 
   var store: Store = _
@@ -147,7 +148,7 @@ object GmailStuff {
       val dellist = new ListBuffer[ToDelete]()
       println("Find requested emails with attachments...")
       reconnect()
-      val inbox = store.getFolder(s"[Gmail]/$allmailfolder")
+      val inbox = store.getFolder(s"$gmailFolderPrefix/$allmailfolder")
       inbox.open(Folder.READ_ONLY)
       val msgs = inbox.search(new GmailRawSearchTerm(gmailsearch + (if (label.isEmpty) "" else " label:" + label)))
       println(s" ${msgs.length } emails found matching the criteria, querying the first limit=$limit emails only!")
@@ -212,8 +213,8 @@ object GmailStuff {
           println("----- Re-connect each time...")
           if (store.isConnected) store.close()
           reconnect()
-          allmail = store.getFolder(s"[Gmail]/$allmailfolder").asInstanceOf[IMAPFolder]
-          trash = store.getFolder(s"[Gmail]/$trashfolder").asInstanceOf[IMAPFolder]
+          allmail = store.getFolder(s"$gmailFolderPrefix/$allmailfolder").asInstanceOf[IMAPFolder]
+          trash = store.getFolder(s"$gmailFolderPrefix/$trashfolder").asInstanceOf[IMAPFolder]
           allmail.open(Folder.READ_WRITE)
           startns = System.nanoTime
           println("----- Re-connected!")

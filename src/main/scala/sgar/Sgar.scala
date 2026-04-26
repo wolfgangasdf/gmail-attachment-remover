@@ -81,6 +81,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       props.put(currentAccount + "-label", tflabel.text.value)
       props.put(currentAccount + "-allmailfolder", tfallmailfolder.text.value)
       props.put(currentAccount + "-trashfolder", tftrashfolder.text.value)
+      props.put(currentAccount + "-gmailFolderPrefix", tfGmailFolderPrefix.text.value)
       props.put(currentAccount + "-gmailsearch", cbgmailsearch.getValue)
       props.put(currentAccount + "-password", tfpassword.getText)
     }
@@ -96,6 +97,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
       tflabel.text = props.getProperty(currentAccount + "-label", "removeattachments")
       tfallmailfolder.text = props.getProperty(currentAccount + "-allmailfolder", "All Mail")
       tftrashfolder.text = props.getProperty(currentAccount + "-trashfolder", "Trash")
+      tfGmailFolderPrefix.text = props.getProperty(currentAccount + "-gmailFolderPrefix", "[Gmail]")
       cbgmailsearch.setValue(props.getProperty(currentAccount + "-gmailsearch", "???")) // don't use value = !
       tfpassword.text = props.getProperty(currentAccount + "-password", "")
     }
@@ -210,6 +212,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
   }
   private val tfallmailfolder: TextField = new TextField {
     hgrow = Priority.Always
+    prefWidth = 100
     maxWidth = Double.MaxValue
     text = ""
     tooltip = new Tooltip {
@@ -218,10 +221,19 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
   }
   private val tftrashfolder: TextField = new TextField {
     hgrow = Priority.Always
+    prefWidth = 100
     maxWidth = Double.MaxValue
     text = ""
     tooltip = new Tooltip {
       text = "Gmail's \"Trash\" folder name (change for other languages)"
+    }
+  }
+  private val tfGmailFolderPrefix: TextField = new TextField {
+    hgrow = Priority.Always
+    maxWidth = Double.MaxValue
+    text = "[Gmail]"
+    tooltip = new Tooltip {
+      text = "Gmail folder prefix as seen via IMAP, e.g. [Gmail] or [Google Mail]"
     }
   }
   val cbCaffeinate = new CheckBox("Run caffeinate")
@@ -264,6 +276,7 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
     GmailStuff.label = tflabel.text.value
     GmailStuff.allmailfolder = tfallmailfolder.text.value
     GmailStuff.trashfolder = tftrashfolder.text.value
+    GmailStuff.gmailFolderPrefix = tfGmailFolderPrefix.text.value
     GmailStuff.gmailsearch = cbgmailsearch.getValue
     GmailStuff.minbytes = tfminbytes.text.value.toInt
     GmailStuff.limit = tflimit.text.value.toInt
@@ -464,7 +477,8 @@ class MainScene(stage: Stage, props: Properties) extends Scene {
         children ++= List(
           new Label("Gmail label: "), tflabel,
           new Label("\"All mail\" folder: "), tfallmailfolder,
-          new Label("\"Trash\" folder: "), tftrashfolder)
+          new Label("\"Trash\" folder: "), tftrashfolder,
+          new Label("Gmail folder prefix: "), tfGmailFolderPrefix)
       },
       new HBox(space) {
         alignment = Pos.CenterLeft; children ++= List(new Label("Gmail search: "), cbgmailsearch)

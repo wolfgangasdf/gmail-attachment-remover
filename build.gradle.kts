@@ -23,7 +23,7 @@ plugins {
     id("idea")
     application
     id("org.openjfx.javafxplugin") version "0.1.0"
-    id("com.github.ben-manes.versions") version "0.53.0"
+    id("com.github.ben-manes.versions") version "0.54.0"
     id("org.beryx.runtime") version "2.0.1"
 }
 
@@ -55,7 +55,7 @@ val javaFXOptions = the<JavaFXOptions>()
 
 dependencies {
     implementation("org.scala-lang:scala-library:2.13.18")
-    implementation("org.scalafx:scalafx_2.13:24.0.2-R36") {
+    implementation("org.scalafx:scalafx_2.13:25.0.2-R37") {
         exclude("org.openjfx") // otherwise image includes host jars, possibly 24<>25 issue
     }
     implementation("jakarta.mail:jakarta.mail-api:2.1.5")
